@@ -51,7 +51,8 @@ CloudFront). See [docs/integrate.md](docs/integrate.md#cost) for the assumptions
 ## Mobile apps
 
 Android and iOS apps are planned as a single Expo (React Native) app that reuses
-`HomeCloudClient`. Push notifications and live updates are next on the list. See
+`HomeCloudClient`. They are deferred until the web UI is live and connected to the on-prem
+stack (milestone M1). See
 [docs/mobile.md](docs/mobile.md).
 
 ## Contributing
