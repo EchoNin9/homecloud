@@ -1,0 +1,7 @@
+# Copy to backend.hcl (gitignored) and fill in from: cd ../../bootstrap && tofu output -raw backend_hcl
+bucket       = "homecloud-tfstate-123456789012-us-east-1"
+key          = "homecloud/standalone.tfstate"
+region       = "us-east-1"
+encrypt      = true
+use_lockfile = true # S3 native locking, no DynamoDB table needed
+# kms_key_id = "arn:aws:kms:..." # only if the bootstrap used kms_key_arn

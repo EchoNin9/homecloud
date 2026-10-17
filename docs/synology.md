@@ -19,7 +19,8 @@ Copy the contents of the repo's `nas/` directory (compose file, `bridge/`, `mosq
 
 ## 2. Cloud credentials
 
-The Terraform cloud module outputs, per home: `cert.pem`, `private.key` and the IoT endpoint, plus
+Recommended: generate `private.key` on the NAS and send only a CSR to the cloud, as in
+[first-deploy.md](first-deploy.md) steps 2 and 4. Otherwise the cloud module outputs, per home, `cert.pem`, `private.key` and the IoT endpoint, plus
 `AmazonRootCA1.pem` (from <https://www.amazontrust.com/repository/AmazonRootCA1.pem>). Place them in
 `/volume1/docker/homecloud/bridge/certs/`:
 
