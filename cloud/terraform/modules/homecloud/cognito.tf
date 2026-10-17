@@ -55,8 +55,8 @@ resource "aws_cognito_user_pool_client" "this" {
   allowed_oauth_flows_user_pool_client = true
   allowed_oauth_flows                  = ["code"]
   allowed_oauth_scopes                 = ["openid", "email", "profile"]
-  callback_urls                        = local.web_urls
-  logout_urls                          = local.web_urls
+  callback_urls                        = local.auth_redirect_urls
+  logout_urls                          = local.auth_redirect_urls
 
   prevent_user_existence_errors = "ENABLED"
   access_token_validity         = 1

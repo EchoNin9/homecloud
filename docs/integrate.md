@@ -158,3 +158,10 @@ That is a pessimistic average: 60 msgs/min is a chatty home. HA state changes in
 closer to 5-10/min after the bridge's filter (use the bridge domain/entity filter and skip noisy
 sensors), which gives roughly **1-3 USD/month** (IoT messages and DynamoDB writes scale linearly with
 message rate and dominate). The 15-minute snapshots add ~100 messages/day per snapshot batch.
+
+## Mobile apps
+
+To let the planned Android/iOS app sign in, set `native_redirect_uris = ["homecloud://auth"]`
+on the module. That adds the URI to the created Cognito client's callback and logout URLs.
+If you bring your own pool, add the same URI to your app client yourself. Native apps call the
+same `/v1` API with the same ID token. See [mobile.md](mobile.md).

@@ -1,8 +1,9 @@
 name: ci
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
+    branches: [main, develop]
 
 jobs:
   bridge:
@@ -40,6 +41,11 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: "20", cache: npm, cache-dependency-path: web/package-lock.json }
       - run: npm ci
+      - name: client stays dependency-free (shared with mobile app)
+        run: |
+          if grep -rnP "from ['\"](?!\./)" src/client --include=*.ts | grep -v '\.test\.ts:'; then
+            echo "::error::web/src/client may only import from its own folder"; exit 1
+          fi
       - run: npm run typecheck
       - run: npm run build
       - run: npm test -- --run
@@ -49,4 +55,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: cp nas/.env.example nas/.env && docker compose -f nas/docker-compose.yml --env-file nas/.env config -q
-      - run: shellcheck nas/scripts/*.sh
+      - run: shellcheck nas/scripts/*.sh scripts/*.sh

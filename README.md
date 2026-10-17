@@ -22,7 +22,7 @@ The full message and API contract is in [docs/contract.md](docs/contract.md).
 | `cloud/terraform/examples/` | `standalone` and `existing-cognito` deployments |
 | `cloud/lambdas/` | Ingest and API Lambdas (Python 3.12, boto3 only) |
 | `web/` | React dashboard, embeddable `<HomeCloudDashboard>` component and dependency-free `HomeCloudClient` |
-| `docs/` | Contract, Synology setup, integration recipes |
+| `docs/` | Contract, Synology setup, integration recipes, [mobile app plan](docs/mobile.md) |
 
 ## Quick start
 
@@ -47,6 +47,17 @@ The full message and API contract is in [docs/contract.md](docs/contract.md).
 
 About US$1–3/month for one home at typical usage (IoT messages, Lambda, on-demand DynamoDB,
 CloudFront). See [docs/integrate.md](docs/integrate.md#cost) for the assumptions.
+
+## Mobile apps
+
+Android and iOS apps are planned as a single Expo (React Native) app that reuses
+`HomeCloudClient`. Push notifications and live updates are next on the list. See
+[docs/mobile.md](docs/mobile.md).
+
+## Contributing
+
+`main` is production and only accepts merges from `develop`. Open PRs against `develop`.
+Agents should read [CLAUDE.md](CLAUDE.md), which is also available as `AGENTS.md`.
 
 ## License
 
