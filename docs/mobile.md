@@ -1,7 +1,14 @@
 # Mobile apps (Android / iOS) — design notes
 
-Status: **planned**. Nothing here is built yet. These notes make sure v0.1 doesn't paint us
-into a corner.
+Status: **deferred.** Nothing here is built yet.
+
+**Gate: don't start mobile work until milestone M1 is done.** M1 means:
+1. The cloud module is deployed to a real AWS account.
+2. The bridge on the Synology is connected (`GET /v1/homes` shows `online: true`).
+3. The web UI on CloudFront signs in with Cognito, shows live Home Assistant entities, and
+   successfully toggles at least one real device end to end.
+
+Until then, these notes only exist so that v0.1 doesn't paint us into a corner.
 
 ## Decision: one Expo (React Native) app for both platforms
 

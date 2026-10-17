@@ -18,12 +18,15 @@ Codex and others). `AGENTS.md` is a symlink to this file.
 and the HTTP API. Change it **first**, in the same PR as the code. The three parts (`nas/`,
 `cloud/`, `web/`) are built to the contract independently.
 
-## Mobile apps are planned. Keep these working
+## Mobile apps are deferred until M1. Keep these working anyway
 
 - `web/src/client` stays free of the DOM and of dependencies, because the Expo app will
   reuse it. CI enforces this.
 - API changes are **additive** within `/v1`. Mobile builds in the stores can't be
   force-updated, so a breaking change needs `/v2`.
+- **Don't start mobile work** (no Expo app, push notifications or WebSocket) until milestone
+  M1 in `docs/mobile.md` is met: the web UI is live and controlling the on-prem Home
+  Assistant. The current priority is getting web, cloud and NAS working end to end.
 - See `docs/mobile.md` for the design and the v0.2 backlog. Names reserved for v2 are at
   the end of the contract.
 
