@@ -1,0 +1,10 @@
+.env
+certs/
+**/certs/
+passwd
+mosquitto/passwd
+*.pem
+*.key
+.venv/
+__pycache__/
+.pytest_cache/

@@ -1,0 +1,8 @@
+{
+  "apiUrl": "https://abc123.execute-api.us-east-1.amazonaws.com",
+  "region": "us-east-1",
+  "userPoolId": "us-east-1_XXXXXXXXX",
+  "clientId": "xxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "cognitoDomain": "my-homecloud.auth.us-east-1.amazoncognito.com",
+  "redirectUri": "https://home.example.com/"
+}

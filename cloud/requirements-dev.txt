@@ -1,0 +1,3 @@
+pytest>=8
+moto[dynamodb,iot]>=5.0
+boto3>=1.34

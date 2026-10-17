@@ -1,0 +1,60 @@
+# homecloud NAS stack. Copy .env.example to .env and edit before `docker compose up -d`.
+name: homecloud
+
+services:
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    network_mode: host   # needed for device discovery; UI on :8123
+    environment:
+      TZ: ${TZ:-UTC}
+    volumes:
+      - ${DATA_ROOT}/homeassistant:/config
+    restart: unless-stopped
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    # Local only: published on loopback, reachable by HA/Zigbee2MQTT, never from the LAN.
+    ports:
+      - "127.0.0.1:1883:1883"
+    environment:
+      TZ: ${TZ:-UTC}
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ${DATA_ROOT}/mosquitto/passwd:/mosquitto/config/passwd:ro
+      - ${DATA_ROOT}/mosquitto/data:/mosquitto/data
+    restart: unless-stopped
+
+  zigbee2mqtt:
+    profiles: [zigbee]   # enable with: docker compose --profile zigbee up -d
+    image: koenkk/zigbee2mqtt:2.14.2
+    depends_on: [mosquitto]
+    environment:
+      TZ: ${TZ:-UTC}
+    volumes:
+      - ${DATA_ROOT}/zigbee2mqtt:/app/data
+    devices:
+      - ${ZIGBEE_DEVICE:-/dev/ttyUSB0}:/dev/ttyZigbee
+    restart: unless-stopped
+
+  bridge:
+    build: ./bridge
+    image: homecloud-bridge:0.1.0
+    network_mode: host   # reaches Home Assistant at 127.0.0.1:8123
+    environment:
+      TZ: ${TZ:-UTC}
+      HOME_ID: ${HOME_ID:?set HOME_ID in .env}
+      HA_URL: ${HA_URL:-ws://127.0.0.1:8123/api/websocket}
+      HA_TOKEN: ${HA_TOKEN:?set HA_TOKEN in .env}
+      IOT_ENDPOINT: ${IOT_ENDPOINT:?set IOT_ENDPOINT in .env}
+      IOT_THING_NAME: ${IOT_THING_NAME:?set IOT_THING_NAME in .env}
+      BRIDGE_ALLOWED_DOMAINS: ${BRIDGE_ALLOWED_DOMAINS:-}
+      BRIDGE_ENTITY_EXCLUDE: ${BRIDGE_ENTITY_EXCLUDE:-}
+      BRIDGE_ALLOWED_SERVICES: ${BRIDGE_ALLOWED_SERVICES:-}
+      BRIDGE_CERT_DIR: /certs
+    volumes:
+      - ${DATA_ROOT}/bridge/certs:/certs:ro
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    depends_on: [homeassistant]
+    restart: unless-stopped
