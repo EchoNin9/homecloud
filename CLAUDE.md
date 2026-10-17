@@ -36,8 +36,16 @@ and the HTTP API. Change it **first**, in the same PR as the code. The three par
 |---|---|
 | Bridge | `cd nas/bridge && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt -r requirements-dev.txt && .venv/bin/python -m pytest -q` |
 | Cloud | `cd cloud && python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt && .venv/bin/python -m pytest -q` |
-| Terraform | `terraform fmt -check -recursive cloud/terraform`, then `terraform init -backend=false && terraform validate` in each `cloud/terraform/examples/*` |
+| OpenTofu | `tofu fmt -check -recursive cloud/terraform`, then `tofu init -backend=false && tofu validate` in `cloud/terraform/bootstrap` and each `cloud/terraform/examples/*` |
 | Web | `cd web && npm ci && npm run typecheck && npm run build && npm test -- --run` |
+
+## Infrastructure
+
+- IaC is **OpenTofu** (≥ 1.10), with state in **S3** (bootstrap stack + `backend.hcl`, S3 native
+  locking). Keep the module Terraform-compatible: no OpenTofu-only syntax in
+  `cloud/terraform/modules/`. The folder is still named `terraform/`, since both tools read `.tf`.
+- Never commit `backend.hcl`, `*.tfvars`, state, `certs/` or `*_override.tf`.
+- The deploy runbook is `docs/first-deploy.md`. Update it whenever outputs, inputs or setup steps change.
 
 ## Gotchas
 

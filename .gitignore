@@ -15,3 +15,7 @@ dist/
 !*.tfvars.example
 .bin/
 .DS_Store
+backend.hcl
+certs/
+*.csr
+*_override.tf

@@ -1,0 +1,9 @@
+# Copy to terraform.tfvars (gitignored).
+region   = "us-east-1"
+home_ids = ["home"]
+
+# Recommended: the private key is generated on the NAS and never leaves it.
+# See docs/first-deploy.md step 2.
+device_csr_files = {
+  home = "./certs/home.csr"
+}

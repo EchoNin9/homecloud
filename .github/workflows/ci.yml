@@ -25,12 +25,17 @@ jobs:
         with: { python-version: "3.12" }
       - run: pip install -r requirements-dev.txt
       - run: python -m pytest -q
-      - uses: hashicorp/setup-terraform@v3
-      - run: terraform fmt -check -recursive terraform
-      - name: validate examples
+      - uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: "~1.10"
+          tofu_wrapper: false
+      - run: tofu fmt -check -recursive terraform
+      - name: validate stacks
         run: |
-          for d in terraform/examples/*/; do
-            (cd "$d" && terraform init -backend=false -input=false && terraform validate)
+          for d in terraform/bootstrap terraform/examples/*/; do
+            echo "::group::$d"
+            (cd "$d" && tofu init -backend=false -input=false && tofu validate)
+            echo "::endgroup::"
           done
 
   web:
