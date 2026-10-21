@@ -8,3 +8,8 @@ __pycache__/
 build/
 .terraform.lock.hcl.bak
 .build/
+certs/
+*.key
+*.pem
+*.csr
+tfplan

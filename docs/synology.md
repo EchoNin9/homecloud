@@ -67,6 +67,17 @@ Start** (or `sudo docker compose up -d --build bridge`). The token is shown only
 HA user if you want to limit what the bridge can reach; the bridge's own allowlists are the main
 control.
 
+**If the build fails with `seccomp: config provided but seccomp not supported`** (DSM's kernel lacks
+seccomp, which BuildKit expects; seen on DSM 7.4 / DS1819+), build with the legacy builder, then start
+without building:
+
+```sh
+sudo DOCKER_BUILDKIT=0 docker build -t homecloud-bridge:0.1.0 bridge
+sudo docker compose up -d --no-build bridge
+```
+
+The Container Manager **Build** action hits the same error; once the image exists, plain Start/Restart works.
+
 Check `docker logs homecloud-bridge-1`: expect `connected to Home Assistant`, `connected to IoT Core`,
 `snapshot sent: N entities`.
 
