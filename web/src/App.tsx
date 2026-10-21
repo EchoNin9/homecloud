@@ -91,6 +91,7 @@ export function App({ getToken: externalGetToken }: AppProps) {
           <h1>homecloud</h1>
           <p>Sign in to see your homes.</p>
           <button type="button" className="app-btn" onClick={() => auth?.login()}>Sign in</button>
+          <button type="button" className="app-link" onClick={() => auth?.login('forgotPassword')}>Forgot password?</button>
         </main>
       );
     case 'ready':

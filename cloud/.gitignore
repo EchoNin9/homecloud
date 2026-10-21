@@ -9,3 +9,4 @@ build/
 .terraform.lock.hcl.bak
 .build/
 certs/
+tfplan
