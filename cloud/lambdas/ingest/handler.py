@@ -37,7 +37,8 @@ def _int_or_now(v):
 def handler(event, context=None):
     if not isinstance(event, dict):
         return _drop("not_object")
-    if not hc.is_valid_version(event.get("v")):
+    # status carries no "v" per contract.md; every other kind must be v1.
+    if event.get("kind") != "status" and not hc.is_valid_version(event.get("v")):
         return _drop("bad_version", v=str(event.get("v"))[:20])
 
     home = event.get("homeId")

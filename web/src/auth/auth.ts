@@ -20,7 +20,8 @@ interface StoredTokens {
 }
 
 export interface Auth {
-  login(): Promise<void>;
+  /** Redirects to the hosted UI; 'forgotPassword' opens its reset-password page (same PKCE flow). */
+  login(page?: 'authorize' | 'forgotPassword'): Promise<void>;
   /** If the URL carries ?code=, completes the exchange. Returns true if a callback was handled. */
   handleCallback(): Promise<boolean>;
   isAuthenticated(): boolean;
@@ -112,7 +113,7 @@ export function createAuth(cfg: AuthConfig): Auth {
   }
 
   return {
-    async login() {
+    async login(page = 'authorize') {
       const verifier = generateVerifier();
       const state = randomState();
       sessionStorage.setItem(PKCE_KEY, JSON.stringify({ verifier, state }));
@@ -125,7 +126,7 @@ export function createAuth(cfg: AuthConfig): Auth {
         code_challenge_method: 'S256',
         code_challenge: await challengeS256(verifier),
       });
-      window.location.assign(`${domain}/oauth2/authorize?${q}`);
+      window.location.assign(`${domain}/${page === 'forgotPassword' ? 'forgotPassword' : 'oauth2/authorize'}?${q}`);
     },
 
     async handleCallback() {

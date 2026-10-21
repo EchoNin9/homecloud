@@ -60,10 +60,10 @@ def test_snapshot_upserts_and_does_not_delete_missing(ingest, table):
 
 
 def test_status_writes_meta(ingest, table):
-    ingest.handler(iot_event("home1", "status", {"v": 1, "online": True, "ts": 1760000000000, "version": "0.1.0"}))
+    ingest.handler(iot_event("home1", "status", {"online": True, "ts": 1760000000000, "version": "0.1.0"}))
     m = get(table, "META")
     assert m["online"] is True and m["bridge_version"] == "0.1.0" and m["last_seen_ts"] > 0
-    ingest.handler(iot_event("home1", "status", {"v": 1, "online": False, "ts": 1760000001000, "version": "0.1.0"}))
+    ingest.handler(iot_event("home1", "status", {"online": False, "ts": 1760000001000, "version": "0.1.0"}))
     assert get(table, "META")["online"] is False
 
 
