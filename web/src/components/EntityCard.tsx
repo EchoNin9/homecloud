@@ -179,6 +179,9 @@ const BINARY_WORDS: Record<string, [string, string]> = {
   smoke: ['Smoke', 'Clear'],
 };
 
+/** Read-only entities get a compact one-row tile. */
+const READ_ONLY = new Set(['sensor', 'binary_sensor', 'sun', 'weather']);
+
 export function EntityCard({ entity, disabled, busy, onAction, fav, hidden, onToggleFav, onToggleHidden, groupNames, inGroups, onToggleGroup, selecting, selected, onSelect }: Props) {
   const nameId = useId();
   const domain = domainOf(entity.entity_id);
@@ -237,7 +240,7 @@ export function EntityCard({ entity, disabled, busy, onAction, fav, hidden, onTo
       break;
     case 'scene':
       control = (
-        <button type="button" className="hc-btn hc-btn-primary" disabled={!!off || busy} onClick={() => onAction(entity, { service: 'turn_on', label: 'activate' })}>
+        <button type="button" className="hc-btn hc-btn-outline" disabled={!!off || busy} onClick={() => onAction(entity, { service: 'turn_on', label: 'activate' })}>
           Activate<span className="hc-sr"> {name}</span>
         </button>
       );
@@ -262,14 +265,18 @@ export function EntityCard({ entity, disabled, busy, onAction, fav, hidden, onTo
   }
 
   return (
-    <li id={`hc-e-${entity.entity_id}`} className="hc-card" data-domain={domain} data-on={isOn || undefined} data-hidden={hidden || undefined} data-selected={selected || undefined} aria-busy={busy || undefined}>
+    <li
+      id={`hc-e-${entity.entity_id}`}
+      className="hc-card"
+      data-compact={READ_ONLY.has(domain) || undefined}
+      data-domain={domain} data-on={isOn || undefined} data-hidden={hidden || undefined} data-selected={selected || undefined} aria-busy={busy || undefined}>
       <div className="hc-card-head">
         {selecting && (
           <input type="checkbox" className="hc-pick" checked={!!selected} onChange={onSelect} aria-label={`Select ${name}`} />
         )}
         <div className="hc-card-title">
-          <span id={nameId} className="hc-name">{name}</span>
-          <span className="hc-id" title={entity.entity_id}>{entity.entity_id}</span>
+          <span id={nameId} className="hc-name" title={entity.entity_id}>{name}</span>
+          {selecting && <span className="hc-id">{entity.entity_id}</span>}
         </div>
         {status && domain !== 'light' && domain !== 'switch' && domain !== 'fan' ? <span className="hc-pill">{prettyState(status)}</span> : null}
         {busy && <span className="hc-spinner" role="img" aria-label="Sending command" />}
@@ -280,7 +287,7 @@ export function EntityCard({ entity, disabled, busy, onAction, fav, hidden, onTo
         )}
       </div>
       <div className="hc-card-body">{control}</div>
-      {(onToggleGroup || onToggleHidden) && (
+      {selecting && (onToggleGroup || onToggleHidden) && (
         <div className="hc-card-foot">
           {onToggleGroup && <GroupMenu name={name} all={groupNames ?? []} mine={inGroups ?? []} onToggle={onToggleGroup} />}
           {onToggleHidden && (
