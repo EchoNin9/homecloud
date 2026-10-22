@@ -1,6 +1,6 @@
 # Integrating the homecloud cloud half
 
-The Terraform module in `cloud/terraform/modules/homecloud` implements the AWS side of
+The OpenTofu module (Terraform-compatible) in `cloud/terraform/modules/homecloud` implements the AWS side of
 [`contract.md`](contract.md): DynamoDB, IoT Core (thing + cert + policy per home), two Lambdas,
 an HTTP API with a Cognito JWT authorizer and, optionally, private web hosting.
 
@@ -8,55 +8,49 @@ Three ways to use it, from most to least integrated.
 
 ## 1. Standalone deploy
 
-Creates everything: Cognito pool + public client (code + PKCE) + hosted UI domain, the API,
-IoT resources, and S3 + CloudFront for the SPA.
+Creates everything: a Cognito pool, a public client (code + PKCE) and a hosted UI domain, plus
+the API, IoT resources, and S3 + CloudFront for the SPA. State goes in S3 (see below).
 
-```bash
-cd cloud/terraform/examples/standalone
-terraform init
-terraform apply -var 'home_ids=["home"]'
-```
+**Follow [first-deploy.md](first-deploy.md).** It covers the state bucket, CSR, apply,
+certificates, your login, the NAS and the web upload, with a smoke test after each step.
 
-Create a user and put them in an allowed group (the module creates the groups in `allowed_groups`):
+The SPA is published with `./scripts/deploy-web.sh`. The bucket's `config.json` (`apiUrl`,
+`region`, `userPoolId`, `clientId`, `cognitoDomain`) is managed by the module and left alone.
+`apiUrl` has no `/v1` suffix.
 
-```bash
-POOL=$(terraform output -raw user_pool_id)
-aws cognito-idp admin-create-user --user-pool-id "$POOL" --username you@example.com \
-  --user-attributes Name=email,Value=you@example.com Name=email_verified,Value=true
-aws cognito-idp admin-add-user-to-group --user-pool-id "$POOL" --username you@example.com --group-name admin
-```
+### State: S3 backend (OpenTofu)
 
-Deploy the SPA build to `web_bucket`; `config.json` (`apiUrl`, `region`, `userPoolId`, `clientId`,
-`cognitoDomain`) is already there. `apiUrl` has no `/v1` suffix.
-
-```bash
-aws s3 sync web/dist/ "s3://$(terraform output -raw web_bucket)/" --exclude config.json
-```
+Both examples declare `backend "s3" {}` and read their settings from `backend.hcl`. Copy
+`backend.hcl.example`, then run `tofu init -backend-config=backend.hcl`. The bucket comes from
+`cloud/terraform/bootstrap`, which creates a versioned, encrypted, public-blocked, TLS-only bucket.
+Locking uses S3 lockfiles (`use_lockfile = true`, OpenTofu or Terraform ≥ 1.10), so no DynamoDB
+table is needed. When you use the module inside your own stack, keep using your stack's existing
+backend.
 
 ### Device certificates for the NAS
 
-**Preferred: bring your own CSR (private key never enters Terraform state).**
+**Preferred: bring your own CSR (private key never enters state).**
 
 ```bash
 openssl req -new -newkey rsa:2048 -nodes -keyout home.key -out home.csr -subj "/CN=homecloud-home"
-terraform apply -var 'device_csrs={home="'"$(cat home.csr)"'"}'   # or put it in a .tfvars file
-terraform output -json certificate_pems | jq -r .home > home.pem
+tofu apply -var 'device_csrs={home="'"$(cat home.csr)"'"}'   # or put it in a .tfvars file
+tofu output -json certificate_pems | jq -r .home > home.pem
 ```
 
 **Fallback: let AWS generate the key.** Simpler, but the private key is stored in
-**plaintext in Terraform state**. Use an encrypted remote backend with tight access, or do not use this.
+**plaintext in state**. Use an encrypted remote backend with tight access, or do not use this.
 
 ```bash
-terraform output -json certificate_pems | jq -r .home > home.pem
-terraform output -json private_keys     | jq -r .home > home.key && chmod 600 home.key
+tofu output -json certificate_pems | jq -r .home > home.pem
+tofu output -json private_keys     | jq -r .home > home.key && chmod 600 home.key
 ```
 
 Then the root CA and the endpoint for the bridge:
 
 ```bash
 curl -o AmazonRootCA1.pem https://www.amazontrust.com/repository/AmazonRootCA1.pem
-terraform output -raw iot_endpoint      # MQTT over TLS, port 8883
-terraform output -json thing_names      # MQTT client id MUST equal this (e.g. homecloud-home)
+tofu output -raw iot_endpoint      # MQTT over TLS, port 8883
+tofu output -json thing_names      # MQTT client id MUST equal this (e.g. homecloud-home)
 ```
 
 ## 2. As a module in an existing stack with an existing Cognito pool
@@ -98,11 +92,11 @@ All routes except `/v1/health` need `Authorization: Bearer <Cognito ID token>` a
 `cognito:groups` claim intersecting `allowed_groups`. `API` is `api_url` (no `/v1`).
 
 ```bash
-API=$(terraform output -raw api_url)
+API=$(tofu output -raw api_url)
 curl "$API/v1/health"
 
 # Get a token for testing. This needs enable_password_auth = true on the module, which is off by default.
-TOKEN=$(aws cognito-idp initiate-auth --client-id "$(terraform output -raw user_pool_client_id)" \
+TOKEN=$(aws cognito-idp initiate-auth --client-id "$(tofu output -raw user_pool_client_id)" \
   --auth-flow USER_PASSWORD_AUTH --auth-parameters USERNAME=you@example.com,PASSWORD='...' \
   --query AuthenticationResult.IdToken --output text)
 
@@ -158,3 +152,10 @@ That is a pessimistic average: 60 msgs/min is a chatty home. HA state changes in
 closer to 5-10/min after the bridge's filter (use the bridge domain/entity filter and skip noisy
 sensors), which gives roughly **1-3 USD/month** (IoT messages and DynamoDB writes scale linearly with
 message rate and dominate). The 15-minute snapshots add ~100 messages/day per snapshot batch.
+
+## Mobile apps
+
+To let the planned Android/iOS app sign in, set `native_redirect_uris = ["homecloud://auth"]`
+on the module. That adds the URI to the created Cognito client's callback and logout URLs.
+If you bring your own pool, add the same URI to your app client yourself. Native apps call the
+same `/v1` API with the same ID token. See [mobile.md](mobile.md).

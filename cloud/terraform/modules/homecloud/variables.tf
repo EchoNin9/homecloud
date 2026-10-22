@@ -124,3 +124,13 @@ variable "enable_password_auth" {
   type        = bool
   default     = false
 }
+
+variable "native_redirect_uris" {
+  description = "Custom-scheme redirect URIs for mobile apps (e.g. [\"homecloud://auth\"]). They are added to the created Cognito client's callback and logout URLs. If you bring your own pool, add them to your client yourself."
+  type        = list(string)
+  default     = []
+  validation {
+    condition     = alltrue([for u in var.native_redirect_uris : can(regex("^[a-z][a-z0-9+.-]*://", u)) && !can(regex("^https?://", u))])
+    error_message = "native_redirect_uris must be custom-scheme URIs such as homecloud://auth (use web_callback_urls for http(s))."
+  }
+}

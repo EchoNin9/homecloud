@@ -1,0 +1,22 @@
+name: branch-policy
+# Repo rule: only `develop` may be merged into `main`. Make this check required on main.
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize, edited]
+
+jobs:
+  only-develop-into-main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require head branch develop (same repo)
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          BASE_REPO: ${{ github.repository }}
+        run: |
+          if [ "$HEAD_REF" != "develop" ] || [ "$HEAD_REPO" != "$BASE_REPO" ]; then
+            echo "::error::Only $BASE_REPO:develop may be merged into main (got $HEAD_REPO:$HEAD_REF). Target develop instead."
+            exit 1
+          fi
+          echo "OK: develop -> main"

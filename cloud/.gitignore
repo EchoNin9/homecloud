@@ -9,8 +9,4 @@ build/
 .terraform.lock.hcl.bak
 .build/
 certs/
-*.key
-*.pem
-*.csr
 tfplan
-backend.tf

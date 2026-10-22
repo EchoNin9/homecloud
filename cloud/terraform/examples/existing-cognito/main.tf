@@ -2,7 +2,12 @@
 # Shaped after echo9's funkedupshift (infra/main.tf): it exposes outputs
 # `cognitoUserPoolId` and `cognitoClientId`, and uses the groups admin / manager / user.
 terraform {
-  required_version = ">= 1.6"
+  required_version = ">= 1.10" # OpenTofu >= 1.10 (or Terraform >= 1.10) for S3 native locking
+
+  # Remote state in S3. Settings live in backend.hcl (copy backend.hcl.example):
+  #   tofu init -backend-config=backend.hcl
+  backend "s3" {}
+
   required_providers {
     aws = {
       source  = "hashicorp/aws"

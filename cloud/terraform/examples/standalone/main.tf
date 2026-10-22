@@ -1,5 +1,10 @@
 terraform {
-  required_version = ">= 1.6"
+  required_version = ">= 1.10" # OpenTofu >= 1.10 (or Terraform >= 1.10) for S3 native locking
+
+  # Remote state in S3. Settings live in backend.hcl (copy backend.hcl.example):
+  #   tofu init -backend-config=backend.hcl
+  backend "s3" {}
+
   required_providers {
     aws = {
       source  = "hashicorp/aws"
@@ -24,6 +29,12 @@ variable "device_csrs" {
   default     = {}
 }
 
+variable "device_csr_files" {
+  description = "Optional homeId => path to a CSR file (recommended; see docs/first-deploy.md). Merged over device_csrs."
+  type        = map(string)
+  default     = {}
+}
+
 provider "aws" {
   region = var.region
 }
@@ -32,7 +43,7 @@ module "homecloud" {
   source = "../../modules/homecloud"
 
   home_ids           = var.home_ids
-  device_csrs        = var.device_csrs
+  device_csrs        = merge(var.device_csrs, { for k, p in var.device_csr_files : k => file(p) })
   create_web_hosting = true
   # Creates its own Cognito pool, client, hosted UI domain and the "admin" group.
   allowed_groups = ["admin"]
@@ -43,6 +54,8 @@ output "iot_endpoint" { value = module.homecloud.iot_endpoint }
 output "thing_names" { value = module.homecloud.thing_names }
 output "web_url" { value = module.homecloud.web_url }
 output "web_bucket" { value = module.homecloud.web_bucket }
+output "web_distribution_id" { value = module.homecloud.web_distribution_id }
+output "table_name" { value = module.homecloud.table_name }
 output "user_pool_id" { value = module.homecloud.user_pool_id }
 output "user_pool_client_id" { value = module.homecloud.user_pool_client_id }
 output "cognito_domain" { value = module.homecloud.cognito_domain }

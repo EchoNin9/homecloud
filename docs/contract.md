@@ -124,3 +124,13 @@ check is a second layer. Errors are returned as `{"error": "<code>", "message": 
 - Light brightness uses `data.brightness` from 0 to 255.
 - The Cognito app client is public: no secret, authorization-code flow with PKCE. The web
   `redirectUri` must be registered as both a callback URL and a logout URL.
+
+## Reserved for v2
+
+These names are reserved so no other change claims them. The mobile push and live-update
+work is described in [mobile.md](mobile.md).
+
+- MQTT `homecloud/{homeId}/event` (bridge → cloud): user-facing events that trigger push notifications.
+- `POST /v1/devices` and `DELETE /v1/devices/{deviceId}`: register and unregister push tokens.
+- `GET /v1/homes/{homeId}/summary`: entities plus home status in one call.
+- WebSocket route `$connect?homeId=` for live state updates.
