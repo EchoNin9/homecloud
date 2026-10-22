@@ -120,3 +120,34 @@ export function formatLastSeen(ts: number | null | undefined, nowMs = Date.now()
 export function errorMessage(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
+
+// ponytail: warning rules are hard-coded; make them per-home settings if people want to tune them.
+export const DOOR_OPEN_MS = 5 * 60_000;
+export const DRIVE_MAX_C = 50;
+const DOOR_CLASSES = new Set(['door', 'garage_door']);
+
+export interface Warning {
+  kind: 'door' | 'drive';
+  entity: Entity;
+  text: string;
+}
+
+const toC = (v: number, unit: unknown) => (typeof unit === 'string' && unit.includes('F') ? ((v - 32) * 5) / 9 : v);
+
+/** Doors left open longer than DOOR_OPEN_MS, and drives hotter than DRIVE_MAX_C. */
+export function warnings(entities: Entity[], nowMs = Date.now()): Warning[] {
+  const out: Warning[] = [];
+  for (const e of entities) {
+    const a = e.attributes;
+    if (domainOf(e.entity_id) === 'binary_sensor' && DOOR_CLASSES.has(String(a.device_class)) && e.state === 'on') {
+      const since = Date.parse(e.last_changed);
+      if (!since || nowMs - since >= DOOR_OPEN_MS) out.push({ kind: 'door', entity: e, text: `${friendlyName(e)} open` });
+    } else if (domainOf(e.entity_id) === 'sensor' && /drive_\d+_temperature$/.test(e.entity_id)) {
+      const v = Number(e.state);
+      if (Number.isFinite(v) && toC(v, a.unit_of_measurement) > DRIVE_MAX_C) {
+        out.push({ kind: 'drive', entity: e, text: `${friendlyName(e)} ${e.state}${a.unit_of_measurement ?? ''}` });
+      }
+    }
+  }
+  return out.sort((x, y) => (x.kind === y.kind ? x.text.localeCompare(y.text) : x.kind === 'door' ? -1 : 1));
+}

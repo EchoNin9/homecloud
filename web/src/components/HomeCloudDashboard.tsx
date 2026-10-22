@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { Entity, Home, HomeCloudClient } from '../client';
 import { EntityCard, type Action } from './EntityCard';
 import { usePoll } from './usePoll';
-import { DEFAULT_PREFS, domainOf, errorMessage, formatLastSeen, organize, type ViewPrefs } from './util';
+import { DEFAULT_PREFS, domainOf, errorMessage, formatLastSeen, organize, warnings, type ViewPrefs } from './util';
 import './dashboard.css';
 
 export interface HomeCloudDashboardProps {
@@ -76,6 +76,8 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000 }
   const homeLabelId = useId();
   const searchId = useId();
   const [prefs, setPrefs] = usePrefs(pinnedHome ?? selected);
+  const [navOpen, setNavOpen] = useState(false);
+  const navId = useId();
 
   useEffect(() => {
     if (pinnedHome) setSelected(pinnedHome);
@@ -151,6 +153,30 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000 }
     });
     return organize(merged, filter, prefs);
   }, [entities, patches, filter, prefs]);
+  const alerts = useMemo(() => warnings(entities ?? []), [entities]);
+  const sectionId = (key: string) => `${homeLabelId}-${key}`;
+  const goTo = (id: string) => {
+    setNavOpen(false);
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+  const goToEntity = (entityId: string) => {
+    const el = document.getElementById(`hc-e-${entityId}`);
+    if (!el) {
+      setFilter(entityId); // hidden or filtered out: narrow the view to it instead
+      return;
+    }
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.classList.remove('hc-flash');
+    void el.offsetWidth; // restart the animation
+    el.classList.add('hc-flash');
+  };
+  useEffect(() => {
+    if (!navOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setNavOpen(false);
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [navOpen]);
+
   const groupNames = useMemo(() => Object.keys(prefs.groups).sort((a, b) => a.localeCompare(b)), [prefs.groups]);
   const hiddenCount = useMemo(() => {
     const ids = new Set((entities ?? []).map((e) => e.entity_id));
@@ -170,6 +196,16 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000 }
     <section className="hc-dash" aria-label="homecloud dashboard">
       <header className="hc-header">
         <div className="hc-home">
+          <button
+            type="button"
+            className="hc-btn hc-btn-icon"
+            aria-label="Open navigation"
+            aria-expanded={navOpen}
+            aria-controls={navId}
+            onClick={() => setNavOpen(true)}
+          >
+            ☰
+          </button>
           {pinnedHome || (homes && homes.length === 1) ? (
             <h1 className="hc-home-name">{selected ?? 'No home'}</h1>
           ) : (
@@ -213,6 +249,41 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000 }
           />
         </div>
       </header>
+
+      {navOpen && <div className="hc-backdrop" onClick={() => setNavOpen(false)} />}
+      <nav id={navId} className="hc-nav" data-open={navOpen || undefined} aria-label="Sections">
+        <div className="hc-nav-head">
+          <span>Sections</span>
+          <button type="button" className="hc-btn hc-btn-icon" aria-label="Close navigation" onClick={() => setNavOpen(false)}>×</button>
+        </div>
+        <ul>
+          {alerts.length > 0 && (
+            <li>
+              <button type="button" className="hc-nav-link" onClick={() => goTo(sectionId('_warn'))}>
+                Warnings <span className="hc-count">{alerts.length}</span>
+              </button>
+            </li>
+          )}
+          {groups.map(([key, title, list]) => (
+            <li key={key}>
+              <button type="button" className="hc-nav-link" onClick={() => goTo(sectionId(key))}>
+                {title} <span className="hc-count">{list.length}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </nav>
+
+      {alerts.length > 0 && (
+        <section id={sectionId('_warn')} className="hc-warnings" aria-label="Warnings">
+          {alerts.map((w) => (
+            <button key={w.entity.entity_id} type="button" className="hc-warn" data-kind={w.kind} onClick={() => goToEntity(w.entity.entity_id)}>
+              <span className="hc-warn-kind">{w.kind === 'door' ? 'Door open' : 'Drive hot'}</span>
+              <span className="hc-warn-text">{w.text}</span>
+            </button>
+          ))}
+        </section>
+      )}
 
       <div className="hc-toolbar">
         <label className="hc-field">
@@ -293,8 +364,8 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000 }
         <p className="hc-empty">{filter ? `No entities match “${filter}”.` : 'This home has not reported any entities yet.'}</p>
       ) : (
         groups.map(([key, title, list]) => (
-          <section key={key} className="hc-group" aria-labelledby={`${homeLabelId}-${key}`}>
-            <h2 id={`${homeLabelId}-${key}`} className="hc-group-title">
+          <section key={key} className="hc-group" aria-labelledby={sectionId(key)}>
+            <h2 id={sectionId(key)} className="hc-group-title">
               {title} <span className="hc-count">{list.length}</span>
             </h2>
             <ul className="hc-grid">
