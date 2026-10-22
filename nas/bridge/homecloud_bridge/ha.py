@@ -120,6 +120,17 @@ class HAClient:
     async def get_states(self) -> list[dict[str, Any]]:
         return await self._request("get_states")
 
+    async def get_areas(self) -> dict[str, str]:
+        """entity_id -> area name. An entity's own area wins over its device's."""
+        areas = {a["area_id"]: a["name"] for a in await self._request("config/area_registry/list")}
+        devices = {d["id"]: d.get("area_id") for d in await self._request("config/device_registry/list")}
+        out: dict[str, str] = {}
+        for e in await self._request("config/entity_registry/list"):
+            name = areas.get(e.get("area_id") or devices.get(e.get("device_id")) or "")
+            if name:
+                out[e["entity_id"]] = name
+        return out
+
     async def call_service(self, domain: str, service: str, entity_ids: list[str],
                            data: dict[str, Any]) -> None:
         await self._request("call_service", domain=domain, service=service,

@@ -23,25 +23,73 @@ export function domainTitle(d: string): string {
   return TITLES[d] ?? d.charAt(0).toUpperCase() + d.slice(1).replace(/_/g, ' ');
 }
 
-export function groupByDomain(entities: Entity[]): Array<[string, Entity[]]> {
+/** Area name the bridge adds (contract: `homecloud_area`), or '' if none. */
+export function areaOf(e: Entity): string {
+  const a = e.attributes.homecloud_area;
+  return typeof a === 'string' ? a : '';
+}
+
+export type SortKey = 'name' | 'recent';
+export type GroupKey = 'domain' | 'area' | 'none';
+
+export interface ViewPrefs {
+  sort: SortKey;
+  group: GroupKey;
+  favs: string[];
+  hidden: string[];
+  showHidden: boolean;
+}
+
+export const DEFAULT_PREFS: ViewPrefs = { sort: 'name', group: 'domain', favs: [], hidden: [], showHidden: false };
+
+/** One rendered section: [key, title, entities]. */
+export type Section = [string, string, Entity[]];
+
+const byName = (x: Entity, y: Entity) => friendlyName(x).localeCompare(friendlyName(y));
+const changedMs = (e: Entity) => Date.parse(e.last_changed) || 0;
+const byRecent = (x: Entity, y: Entity) => changedMs(y) - changedMs(x) || byName(x, y);
+
+const domainRank = (d: string) => {
+  const i = ORDER.indexOf(d);
+  return i === -1 ? ORDER.length : i;
+};
+
+/** Filter, hide, sort and group entities. Favourites get their own first section. */
+export function organize(entities: Entity[], filter: string, p: ViewPrefs): Section[] {
+  const favs = new Set(p.favs);
+  const hidden = new Set(p.hidden);
+  const cmp = p.sort === 'recent' ? byRecent : byName;
+  const shown = entities.filter((e) => (p.showHidden || !hidden.has(e.entity_id)) && matchesFilter(e, filter)).sort(cmp);
+  const out: Section[] = [];
+  const fav = shown.filter((e) => favs.has(e.entity_id));
+  if (fav.length) out.push(['_fav', 'Favourites', fav]);
+  const rest = shown.filter((e) => !favs.has(e.entity_id));
+  if (p.group === 'none') {
+    if (rest.length) out.push(['_all', fav.length ? 'Everything else' : 'All', rest]);
+    return out;
+  }
   const m = new Map<string, Entity[]>();
-  for (const e of entities) {
+  if (p.group === 'area') {
+    for (const e of rest) {
+      const a = areaOf(e);
+      (m.get(a) ?? m.set(a, []).get(a)!).push(e);
+    }
+    // Named areas A-Z, then entities with no area ('' key) last.
+    const areas = [...m.entries()].sort(([a], [b]) => (!a ? 1 : !b ? -1 : a.localeCompare(b)));
+    return out.concat(areas.map(([a, list]): Section => [`area:${a}`, a || 'No area', list]));
+  }
+  for (const e of rest) {
     const d = domainOf(e.entity_id);
     (m.get(d) ?? m.set(d, []).get(d)!).push(e);
   }
-  const rank = (d: string) => {
-    const i = ORDER.indexOf(d);
-    return i === -1 ? ORDER.length : i;
-  };
-  return [...m.entries()]
-    .sort(([a], [b]) => rank(a) - rank(b) || a.localeCompare(b))
-    .map(([d, list]) => [d, list.sort((x, y) => friendlyName(x).localeCompare(friendlyName(y)))]);
+  const groups = [...m.entries()].sort(([a], [b]) => domainRank(a) - domainRank(b) || a.localeCompare(b));
+  return out.concat(groups.map(([d, list]): Section => [d, domainTitle(d), list]));
 }
 
 export function matchesFilter(e: Entity, q: string): boolean {
   if (!q) return true;
   const needle = q.trim().toLowerCase();
-  return friendlyName(e).toLowerCase().includes(needle) || e.entity_id.toLowerCase().includes(needle);
+  return [friendlyName(e), e.entity_id, areaOf(e)].some((s) => s.toLowerCase().includes(needle));
 }
 
 export function formatLastSeen(ts: number | null | undefined, nowMs = Date.now()): string {

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { Entity, Home, HomeCloudClient } from '../client';
 import { EntityCard, type Action } from './EntityCard';
 import { usePoll } from './usePoll';
-import { domainOf, domainTitle, errorMessage, formatLastSeen, groupByDomain, matchesFilter } from './util';
+import { DEFAULT_PREFS, domainOf, errorMessage, formatLastSeen, organize, type ViewPrefs } from './util';
 import './dashboard.css';
 
 export interface HomeCloudDashboardProps {
@@ -24,6 +24,36 @@ interface Toast {
 
 const PATCH_HOLD_MS = 4000;
 
+// ponytail: per-browser prefs in localStorage; move to the API if they need to sync across devices.
+function usePrefs(homeId: string | undefined) {
+  const key = `hc.prefs.${homeId ?? ''}`;
+  const load = (): ViewPrefs => {
+    try {
+      return { ...DEFAULT_PREFS, ...JSON.parse(localStorage.getItem(key) ?? '{}') };
+    } catch {
+      return DEFAULT_PREFS;
+    }
+  };
+  const [state, setState] = useState(() => ({ key, prefs: load() }));
+  const prefs = state.key === key ? state.prefs : load();
+  const update = useCallback(
+    (patch: Partial<ViewPrefs>) =>
+      setState((cur) => {
+        const next = { ...(cur.key === key ? cur.prefs : load()), ...patch };
+        try {
+          localStorage.setItem(key, JSON.stringify(next));
+        } catch {
+          /* storage unavailable: prefs last for this session only */
+        }
+        return { key, prefs: next };
+      }),
+    [key],
+  );
+  return [prefs, update] as const;
+}
+
+const toggle = (list: string[], id: string) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
+
 export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000 }: HomeCloudDashboardProps) {
   const [homes, setHomes] = useState<Home[] | null>(null);
   const [selected, setSelected] = useState<string | undefined>(pinnedHome);
@@ -38,6 +68,7 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000 }
   const toastId = useRef(0);
   const homeLabelId = useId();
   const searchId = useId();
+  const [prefs, setPrefs] = usePrefs(pinnedHome ?? selected);
 
   useEffect(() => {
     if (pinnedHome) setSelected(pinnedHome);
@@ -111,8 +142,12 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000 }
       const p = patches[e.entity_id];
       return p ? { ...e, state: p.state ?? e.state, attributes: { ...e.attributes, ...p.attributes } } : e;
     });
-    return groupByDomain(merged.filter((e) => matchesFilter(e, filter)));
-  }, [entities, patches, filter]);
+    return organize(merged, filter, prefs);
+  }, [entities, patches, filter, prefs]);
+  const hiddenCount = useMemo(() => {
+    const ids = new Set((entities ?? []).map((e) => e.entity_id));
+    return prefs.hidden.filter((id) => ids.has(id)).length;
+  }, [entities, prefs.hidden]);
 
   const switchHome = (id: string) => {
     setEntities(null);
@@ -164,12 +199,36 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000 }
             id={searchId}
             type="search"
             className="hc-input"
-            placeholder="Filter by name or id"
+            placeholder="Filter by name, id or area"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
           />
         </div>
       </header>
+
+      <div className="hc-toolbar">
+        <label className="hc-field">
+          <span>Sort</span>
+          <select className="hc-select" value={prefs.sort} onChange={(e) => setPrefs({ sort: e.target.value as ViewPrefs['sort'] })}>
+            <option value="name">Name</option>
+            <option value="recent">Recently changed</option>
+          </select>
+        </label>
+        <label className="hc-field">
+          <span>Group</span>
+          <select className="hc-select" value={prefs.group} onChange={(e) => setPrefs({ group: e.target.value as ViewPrefs['group'] })}>
+            <option value="domain">By type</option>
+            <option value="area">By area</option>
+            <option value="none">None</option>
+          </select>
+        </label>
+        {hiddenCount > 0 && (
+          <label className="hc-field hc-check">
+            <input type="checkbox" checked={prefs.showHidden} onChange={(e) => setPrefs({ showHidden: e.target.checked })} />
+            <span>Show hidden ({hiddenCount})</span>
+          </label>
+        )}
+      </div>
 
       {error != null && (
         <p className="hc-banner" role="alert">
@@ -187,14 +246,24 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000 }
       ) : groups.length === 0 && entities ? (
         <p className="hc-empty">{filter ? `No entities match “${filter}”.` : 'This home has not reported any entities yet.'}</p>
       ) : (
-        groups.map(([domain, list]) => (
-          <section key={domain} className="hc-group" aria-labelledby={`${homeLabelId}-${domain}`}>
-            <h2 id={`${homeLabelId}-${domain}`} className="hc-group-title">
-              {domainTitle(domain)} <span className="hc-count">{list.length}</span>
+        groups.map(([key, title, list]) => (
+          <section key={key} className="hc-group" aria-labelledby={`${homeLabelId}-${key}`}>
+            <h2 id={`${homeLabelId}-${key}`} className="hc-group-title">
+              {title} <span className="hc-count">{list.length}</span>
             </h2>
             <ul className="hc-grid">
               {list.map((e) => (
-                <EntityCard key={e.entity_id} entity={e} disabled={controlsDisabled} busy={!!busy[e.entity_id]} onAction={onAction} />
+                <EntityCard
+                  key={e.entity_id}
+                  entity={e}
+                  disabled={controlsDisabled}
+                  busy={!!busy[e.entity_id]}
+                  onAction={onAction}
+                  fav={prefs.favs.includes(e.entity_id)}
+                  hidden={prefs.hidden.includes(e.entity_id)}
+                  onToggleFav={() => setPrefs({ favs: toggle(prefs.favs, e.entity_id) })}
+                  onToggleHidden={() => setPrefs({ hidden: toggle(prefs.hidden, e.entity_id) })}
+                />
               ))}
             </ul>
           </section>

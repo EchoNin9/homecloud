@@ -115,3 +115,16 @@
 @media (prefers-reduced-motion: reduce) {
   .hc-dash * { transition: none !important; animation-duration: 0.01ms !important; }
 }
+
+.hc-toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 16px; }
+.hc-field { display: inline-flex; align-items: center; gap: 6px; color: var(--hc-muted); font-size: 0.85rem; }
+.hc-check { min-height: 40px; cursor: pointer; }
+.hc-card-title { flex: 1; }
+.hc-card[data-hidden] { opacity: 0.55; }
+.hc-icon-btn {
+  flex: none; font: inherit; line-height: 1; color: var(--hc-muted); background: none; border: 0; border-radius: 6px;
+  min-width: 32px; min-height: 32px; padding: 4px; cursor: pointer;
+}
+.hc-icon-btn:hover { background: var(--hc-surface-2); color: var(--hc-text); }
+.hc-icon-btn[aria-pressed='true']:not(.hc-text-btn) { color: #d97706; }
+.hc-text-btn { font-size: 0.75rem; }

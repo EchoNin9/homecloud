@@ -1,6 +1,6 @@
 import json
 
-from homecloud_bridge.filters import MAX_ATTR_BYTES, cap_attributes
+from homecloud_bridge.filters import MAX_ATTR_BYTES, EntityFilter, cap_attributes
 
 
 def state(eid, attrs=None):
@@ -42,3 +42,11 @@ def test_attr_cap_under_limit_untouched():
 def test_export_enforces_cap(flt):
     out = flt.export(state("light.k", {f"k{i}": "y" * 1000 for i in range(10)}))
     assert len(json.dumps(out["attributes"], separators=(",", ":"))) <= MAX_ATTR_BYTES
+
+
+def test_export_adds_area_after_cap():
+    f = EntityFilter(["light"])
+    out = f.export({"entity_id": "light.k", "state": "on", "attributes": {"big": "x" * 5000},
+                    "last_changed": "t"}, area="Kitchen")
+    assert out["attributes"] == {"homecloud_area": "Kitchen"}
+    assert "homecloud_area" not in f.export({"entity_id": "light.k", "state": "on"})["attributes"]

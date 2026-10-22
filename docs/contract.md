@@ -60,6 +60,11 @@ a newer snapshot.
 (re)connect and every 15 minutes. Attributes are passed through as-is, minus anything
 over 4 KB per entity. Only entities allowed by the bridge's domain/entity filter are sent.
 
+The bridge adds one attribute of its own: `homecloud_area` (string), the name of the HA area
+the entity is in (its own area, else its device's). It is omitted when there is no area, and
+it is added after the 4 KB cap, so the cap never drops it. Areas are re-read at each snapshot, so
+a change in HA shows up within 15 minutes. Clients must treat it as optional.
+
 ### Command
 ```json
 {
