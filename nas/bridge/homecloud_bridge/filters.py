@@ -7,6 +7,7 @@ from typing import Any, Iterable, Mapping
 
 MAX_ATTR_BYTES = 4096
 AREA_ATTR = "homecloud_area"
+LAT_ATTR, LON_ATTR = "homecloud_latitude", "homecloud_longitude"
 
 
 def _size(obj: Any) -> int:
@@ -32,14 +33,14 @@ class EntityFilter:
             return False
         return not any(fnmatchcase(entity_id, pat) for pat in self.excludes)
 
-    def export(self, state: Mapping[str, Any], area: str | None = None) -> dict[str, Any] | None:
+    def export(self, state: Mapping[str, Any], extra: Mapping[str, Any] | None = None) -> dict[str, Any] | None:
+        """`extra` attributes (added by the bridge) go in after the size cap, so they always survive."""
         """HA state object -> contract entity dict, or None if filtered out."""
         entity_id = state.get("entity_id")
         if not isinstance(entity_id, str) or not self.allows(entity_id):
             return None
         attrs = cap_attributes(state.get("attributes") or {})
-        if area:
-            attrs[AREA_ATTR] = area
+        attrs.update(extra or {})
         return {
             "entity_id": entity_id,
             "state": state.get("state"),

@@ -120,6 +120,11 @@ class HAClient:
     async def get_states(self) -> list[dict[str, Any]]:
         return await self._request("get_states")
 
+    async def get_location(self) -> tuple[float, float] | None:
+        cfg = await self._request("get_config")
+        lat, lon = cfg.get("latitude"), cfg.get("longitude")
+        return (float(lat), float(lon)) if lat is not None and lon is not None else None
+
     async def get_areas(self) -> dict[str, str]:
         """entity_id -> area name. An entity's own area wins over its device's."""
         areas = {a["area_id"]: a["name"] for a in await self._request("config/area_registry/list")}

@@ -47,6 +47,6 @@ def test_export_enforces_cap(flt):
 def test_export_adds_area_after_cap():
     f = EntityFilter(["light"])
     out = f.export({"entity_id": "light.k", "state": "on", "attributes": {"big": "x" * 5000},
-                    "last_changed": "t"}, area="Kitchen")
+                    "last_changed": "t"}, extra={"homecloud_area": "Kitchen"})
     assert out["attributes"] == {"homecloud_area": "Kitchen"}
     assert "homecloud_area" not in f.export({"entity_id": "light.k", "state": "on"})["attributes"]
