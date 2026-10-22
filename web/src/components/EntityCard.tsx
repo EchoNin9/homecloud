@@ -28,8 +28,16 @@ interface Props {
 
 function GroupMenu({ name, all, mine, onToggle }: { name: string; all: string[]; mine: string[]; onToggle: (g: string) => void }) {
   const [draft, setDraft] = useState('');
+  const ref = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    const close = (e: PointerEvent) => {
+      if (ref.current?.open && !ref.current.contains(e.target as Node)) ref.current.open = false;
+    };
+    document.addEventListener('pointerdown', close);
+    return () => document.removeEventListener('pointerdown', close);
+  }, []);
   return (
-    <details className="hc-menu">
+    <details className="hc-menu" ref={ref}>
       <summary className="hc-icon-btn hc-text-btn" aria-label={`Groups for ${name}`} title="Groups">
         Groups{mine.length ? ` (${mine.length})` : ''}
       </summary>
@@ -251,7 +259,7 @@ export function EntityCard({ entity, disabled, busy, onAction, fav, hidden, onTo
   }
 
   return (
-    <li className="hc-card" data-domain={domain} data-on={isOn || undefined} data-hidden={hidden || undefined} aria-busy={busy || undefined}>
+    <li id={`hc-e-${entity.entity_id}`} className="hc-card" data-domain={domain} data-on={isOn || undefined} data-hidden={hidden || undefined} aria-busy={busy || undefined}>
       <div className="hc-card-head">
         <div className="hc-card-title">
           <span id={nameId} className="hc-name">{name}</span>
