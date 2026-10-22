@@ -159,14 +159,50 @@ export function warnings(entities: Entity[], nowMs = Date.now()): Warning[] {
   return out.sort((x, y) => (x.kind === y.kind ? x.text.localeCompare(y.text) : x.kind === 'door' ? -1 : 1));
 }
 
-/** "HH:MM" (24h) of HA's next sunrise/sunset from sun.sun, in the viewer's time zone. */
-export function sunTimes(entities: Entity[], timeZone?: string): { rise?: string; set?: string } {
+const RAD = Math.PI / 180;
+const J1970 = 2440587.5;
+const J2000 = 2451545;
+
+/** Sunrise/sunset (epoch ms) for the solar day `n` (days since J2000) — the sunrise equation. */
+function sunDay(n: number, lat: number, lon: number): { rise: number; set: number; noon: number } | null {
+  const jStar = n - lon / 360;
+  const M = (357.5291 + 0.98560028 * jStar) % 360;
+  const C = 1.9148 * Math.sin(M * RAD) + 0.02 * Math.sin(2 * M * RAD) + 0.0003 * Math.sin(3 * M * RAD);
+  const L = (M + C + 180 + 102.9372) % 360;
+  const transit = J2000 + jStar + 0.0053 * Math.sin(M * RAD) - 0.0069 * Math.sin(2 * L * RAD);
+  const sinD = Math.sin(L * RAD) * Math.sin(23.4397 * RAD);
+  const cosD = Math.cos(Math.asin(sinD));
+  const cosW = (Math.sin(-0.833 * RAD) - Math.sin(lat * RAD) * sinD) / (Math.cos(lat * RAD) * cosD);
+  if (cosW < -1 || cosW > 1) return null; // polar day or night
+  const w = Math.acos(cosW) / RAD / 360;
+  const ms = (j: number) => (j - J1970) * 86_400_000;
+  return { rise: ms(transit - w), set: ms(transit + w), noon: ms(transit) };
+}
+
+/**
+ * Today's sunrise/sunset as "HH:MM" (24h), in the viewer's time zone; rolls over at local
+ * midnight. Uses the home location the bridge adds to sun.sun; without it, falls back to
+ * HA's next_rising/next_setting.
+ */
+export function sunTimes(entities: Entity[], timeZone?: string, nowMs = Date.now()): { rise?: string; set?: string } {
   const a = entities.find((e) => e.entity_id === 'sun.sun')?.attributes;
-  const fmt = (v: unknown) => {
-    const t = typeof v === 'string' ? Date.parse(v) : NaN;
-    return Number.isNaN(t) ? undefined : new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone }).format(t);
-  };
-  return { rise: fmt(a?.next_rising), set: fmt(a?.next_setting) };
+  if (!a) return {};
+  const hhmm = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone });
+  const fmt = (t: number) => (Number.isFinite(t) ? hhmm.format(t) : undefined);
+  const lat = a.homecloud_latitude;
+  const lon = a.homecloud_longitude;
+  if (typeof lat === 'number' && typeof lon === 'number') {
+    const day = new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone });
+    const today = day.format(nowMs);
+    const n0 = Math.round(nowMs / 86_400_000 + J1970 - J2000);
+    for (const n of [n0 - 1, n0, n0 + 1]) {
+      const d = sunDay(n, lat, lon);
+      if (d && day.format(d.noon) === today) return { rise: fmt(d.rise), set: fmt(d.set) };
+    }
+    return {};
+  }
+  const parse = (v: unknown) => (typeof v === 'string' ? Date.parse(v) : NaN);
+  return { rise: fmt(parse(a.next_rising)), set: fmt(parse(a.next_setting)) };
 }
 
 /** HA state for display: "above_horizon" -> "Above horizon". Numbers pass through. */

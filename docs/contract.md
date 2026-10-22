@@ -65,6 +65,10 @@ the entity is in (its own area, else its device's). It is omitted when there is 
 it is added after the 4 KB cap, so the cap never drops it. Areas are re-read at each snapshot, so
 a change in HA shows up within 15 minutes. Clients must treat it as optional.
 
+On `sun.sun` only, the bridge also adds `homecloud_latitude` and `homecloud_longitude` (numbers,
+HA's configured home location) so clients can compute today's sunrise and sunset. HA itself only
+reports the next ones. Optional: without them, clients fall back to `next_rising` / `next_setting`.
+
 ### Command
 ```json
 {

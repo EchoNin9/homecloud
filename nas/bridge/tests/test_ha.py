@@ -147,3 +147,11 @@ async def test_get_areas_entity_area_beats_device_area():
     await asyncio.wait_for(ev.wait(), 2)
     assert await c.get_areas() == {"light.a": "Kitchen", "light.b": "Bedroom"}
     task.cancel()
+
+
+async def test_get_location():
+    ws = FakeWS(results={"get_config": {"latitude": 43.65, "longitude": -79.38, "elevation": 76}})
+    c, task, _, ev = await start(ws)
+    await asyncio.wait_for(ev.wait(), 2)
+    assert await c.get_location() == (43.65, -79.38)
+    task.cancel()

@@ -220,12 +220,12 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
         {(sun.rise || sun.set) && (
           <span className="hc-sun">
             {sun.rise && (
-              <span title="Next sunrise">
+              <span title="Today’s sunrise">
                 <span aria-hidden="true">☀︎</span> sunrise {sun.rise}
               </span>
             )}
             {sun.set && (
-              <span title="Next sunset">
+              <span title="Today’s sunset">
                 <span aria-hidden="true">☾</span> sunset {sun.set}
               </span>
             )}
