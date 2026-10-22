@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { Entity, Home, HomeCloudClient } from '../client';
 import { EntityCard, type Action } from './EntityCard';
 import { usePoll } from './usePoll';
-import { DEFAULT_PREFS, domainOf, errorMessage, formatLastSeen, organize, sunTimes, warnings, type ViewPrefs } from './util';
+import { DEFAULT_PREFS, MAX_QUERIES, domainOf, errorMessage, formatLastSeen, organize, saveQuery, sunTimes, warnings, type ViewPrefs } from './util';
 import './dashboard.css';
 
 export interface HomeCloudDashboardProps {
@@ -53,6 +53,43 @@ function usePrefs(homeId: string | undefined) {
   );
   return [prefs, update] as const;
 }
+
+/** Collapsible nav shade; open/closed is remembered for the browser session. */
+function Shade({ id, title, children }: { id: string; title: React.ReactNode; children: React.ReactNode }) {
+  const key = `hc.shade.${id}`;
+  const [open, setOpen] = useState(() => {
+    try {
+      return sessionStorage.getItem(key) === '1';
+    } catch {
+      return false;
+    }
+  });
+  return (
+    <details
+      className="hc-shade"
+      open={open}
+      onToggle={(e) => {
+        const o = (e.currentTarget as HTMLDetailsElement).open;
+        setOpen(o);
+        try {
+          sessionStorage.setItem(key, o ? '1' : '0');
+        } catch {
+          /* session-only anyway */
+        }
+      }}
+    >
+      <summary className="hc-shade-title">{title}</summary>
+      <div className="hc-shade-body">{children}</div>
+    </details>
+  );
+}
+
+const HA_VIEWS: Array<{ label: string; group: ViewPrefs['group']; sort: ViewPrefs['sort'] }> = [
+  { label: 'None', group: 'none', sort: 'name' },
+  { label: 'By type', group: 'domain', sort: 'name' },
+  { label: 'By area', group: 'area', sort: 'name' },
+  { label: 'Recently changed', group: 'none', sort: 'recent' },
+];
 
 const toggle = (list: string[], id: string) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
 
@@ -176,6 +213,21 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
     setPrefs({ groups: next.length ? { ...rest, [g]: next } : rest });
   };
   const sectionId = (key: string) => `${homeLabelId}-${key}`;
+  const [jumpTo, setJumpTo] = useState<string | null>(null);
+  useEffect(() => {
+    if (jumpTo) {
+      document.getElementById(jumpTo)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setJumpTo(null);
+    }
+  }, [jumpTo, groups]);
+  const [queryMsg, setQueryMsg] = useState('');
+  const onSaveQuery = () => {
+    const next = saveQuery(prefs.queries, filter);
+    if (next) {
+      setPrefs({ queries: next });
+      setQueryMsg('');
+    } else setQueryMsg(`Limit is ${MAX_QUERIES}. Delete one first.`);
+  };
   const goTo = (id: string) => {
     setNavOpen(false);
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -292,27 +344,91 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
       </header>
 
       {navOpen && <div className="hc-backdrop" onClick={() => setNavOpen(false)} />}
-      <nav id={navId} className="hc-nav" data-open={navOpen || undefined} aria-label="Sections">
+      <nav id={navId} className="hc-nav" data-open={navOpen || undefined} aria-label="Menu">
         <div className="hc-nav-head">
-          <span>Sections</span>
+          <span>Menu</span>
           <button type="button" className="hc-btn hc-btn-icon" aria-label="Close navigation" onClick={() => setNavOpen(false)}>×</button>
         </div>
-        <ul>
-          {alerts.length > 0 && (
-            <li>
-              <button type="button" className="hc-nav-link" onClick={() => goTo(sectionId('_warn'))}>
-                Warnings <span className="hc-count">{alerts.length}</span>
-              </button>
-            </li>
-          )}
-          {groups.map(([key, title, list]) => (
-            <li key={key}>
-              <button type="button" className="hc-nav-link" onClick={() => goTo(sectionId(key))}>
-                {title} <span className="hc-count">{list.length}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
+        <Shade id="sections" title="On this page">
+          <ul>
+            {alerts.length > 0 && (
+              <li>
+                <button type="button" className="hc-nav-link" onClick={() => goTo(sectionId('_warn'))}>
+                  Warnings <span className="hc-count">{alerts.length}</span>
+                </button>
+              </li>
+            )}
+            {groups.map(([key, title, list]) => (
+              <li key={key}>
+                <button type="button" className="hc-nav-link" onClick={() => goTo(sectionId(key))}>
+                  {title} <span className="hc-count">{list.length}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </Shade>
+
+        <Shade id="queries" title={<>Saved Queries <span className="hc-count">{prefs.queries.length}/{MAX_QUERIES}</span></>}>
+          <button type="button" className="hc-btn hc-nav-action" disabled={!filter.trim()} onClick={onSaveQuery}>
+            {filter.trim() ? <>Save “{filter.trim()}”</> : 'Type a filter to save it'}
+          </button>
+          {queryMsg && <p className="hc-meta" role="status">{queryMsg}</p>}
+          <ul>
+            {prefs.queries.map((q) => (
+              <li key={q} className="hc-nav-row">
+                <button type="button" className="hc-nav-link" aria-current={q === filter.trim() || undefined} onClick={() => { setFilter(q); setNavOpen(false); }}>
+                  {q}
+                </button>
+                <button type="button" className="hc-icon-btn" aria-label={`Delete saved query ${q}`} onClick={() => { setPrefs({ queries: prefs.queries.filter((x) => x !== q) }); setQueryMsg(''); }}>×</button>
+              </li>
+            ))}
+          </ul>
+        </Shade>
+
+        <Shade id="groups" title="Groups">
+          <Shade id="groups.mine" title={<>My Groups <span className="hc-count">{groupNames.length}</span></>}>
+            {groupNames.length === 0 ? (
+              <p className="hc-meta">None yet. Use Select or a card's Groups menu.</p>
+            ) : (
+              <ul>
+                {groupNames.map((g) => (
+                  <li key={g}>
+                    <button
+                      type="button"
+                      className="hc-nav-link"
+                      onClick={() => {
+                        setPrefs({ group: 'custom' });
+                        setNavOpen(false);
+                        setJumpTo(sectionId(`grp:${g}`));
+                      }}
+                    >
+                      {g} <span className="hc-count">{prefs.groups[g].length}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Shade>
+          <Shade id="groups.ha" title="HA Groups">
+            <ul>
+              {HA_VIEWS.map((v) => (
+                <li key={v.label}>
+                  <button
+                    type="button"
+                    className="hc-nav-link"
+                    aria-current={(prefs.group === v.group && prefs.sort === v.sort) || undefined}
+                    onClick={() => {
+                      setPrefs({ group: v.group, sort: v.sort });
+                      setNavOpen(false);
+                    }}
+                  >
+                    {v.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </Shade>
+        </Shade>
       </nav>
 
       {alerts.length > 0 && (

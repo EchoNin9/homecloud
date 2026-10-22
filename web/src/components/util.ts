@@ -39,10 +39,21 @@ export interface ViewPrefs {
   hidden: string[];
   /** Named custom groups: name -> entity ids. An entity can be in several. */
   groups: Record<string, string[]>;
+  /** Saved filter texts, newest first, at most MAX_QUERIES. */
+  queries: string[];
   showHidden: boolean;
 }
 
-export const DEFAULT_PREFS: ViewPrefs = { sort: 'name', group: 'domain', favs: [], hidden: [], groups: {}, showHidden: false };
+export const DEFAULT_PREFS: ViewPrefs = { sort: 'name', group: 'domain', favs: [], hidden: [], groups: {}, queries: [], showHidden: false };
+export const MAX_QUERIES = 15;
+
+/** Add q to the saved list (newest first, no duplicates). Null when full. */
+export function saveQuery(list: string[], q: string): string[] | null {
+  const t = q.trim();
+  if (!t) return list;
+  const rest = list.filter((x) => x !== t);
+  return rest.length >= MAX_QUERIES ? null : [t, ...rest];
+}
 
 /** One rendered section: [key, title, entities]. */
 export type Section = [string, string, Entity[]];
