@@ -192,3 +192,29 @@
 .hc-bulk-group { display: inline-flex; gap: 6px; flex: 1 1 280px; }
 .hc-bulk-group .hc-input { flex: 1; min-width: 0; }
 .hc-btn[aria-pressed='true'] { border-color: var(--hc-accent); color: var(--hc-accent); }
+
+/* Polish: one-line ids, footer row for per-card tools, cards align their footers. */
+.hc-id { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal; }
+.hc-card-body { flex: 1; }
+.hc-card-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; padding-top: 6px; border-top: 1px solid var(--hc-border); }
+.hc-card-foot .hc-menu { align-self: auto; }
+.hc-reading { overflow-wrap: anywhere; }
+
+/* Phones: two cards per row, tighter chrome, compact bulk bar. */
+@media (max-width: 600px) {
+  .hc-dash { padding: 12px; }
+  .hc-topbar { margin: -12px -12px 12px; padding: 6px 12px; }
+  .hc-sun { gap: 10px; font-size: 0.8rem; }
+  .hc-search { flex-basis: 100%; max-width: none; }
+  .hc-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr)); gap: 8px; }
+  .hc-card { padding: 10px; gap: 8px; }
+  .hc-name { font-size: 0.9rem; }
+  .hc-reading { font-size: 1.25rem; }
+  .hc-actions { flex-wrap: wrap; }
+  .hc-actions .hc-btn { flex: 1 1 60px; padding: 6px 8px; }
+  .hc-toolbar { gap: 8px; }
+  .hc-toolbar .hc-btn, .hc-bulk .hc-btn { padding: 6px 10px; min-height: 36px; font-size: 0.85rem; }
+  .hc-bulk { margin: 12px -12px -12px; padding: 8px 12px; gap: 6px; }
+  .hc-bulk-group { flex-basis: 100%; order: 1; }
+  .hc-warn { width: calc(50% - 4px); }
+}

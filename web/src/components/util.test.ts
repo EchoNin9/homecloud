@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Entity } from '../client';
-import { DEFAULT_PREFS, organize, sunTimes, warnings } from './util';
+import { DEFAULT_PREFS, organize, prettyState, sunTimes, warnings } from './util';
 
 const e = (entity_id: string, name: string, last_changed = '2026-01-01T00:00:00Z'): Entity => ({
   entity_id,
@@ -89,5 +89,13 @@ describe('sunTimes', () => {
     };
     expect(sunTimes([sun], 'America/Toronto')).toEqual({ rise: '07:28', set: '18:15' });
     expect(sunTimes([])).toEqual({ rise: undefined, set: undefined });
+  });
+});
+
+describe('prettyState', () => {
+  it('humanizes words, leaves numbers', () => {
+    expect(prettyState('above_horizon')).toBe('Above horizon');
+    expect(prettyState('12.4')).toBe('12.4');
+    expect(prettyState('-3')).toBe('-3');
   });
 });

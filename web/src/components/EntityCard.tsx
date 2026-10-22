@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { Entity } from '../client';
-import { domainOf, friendlyName } from './util';
+import { domainOf, friendlyName, prettyState } from './util';
 
 export interface Action {
   service: string;
@@ -246,7 +246,7 @@ export function EntityCard({ entity, disabled, busy, onAction, fav, hidden, onTo
       const unit = entity.attributes.unit_of_measurement;
       control = (
         <p className="hc-reading">
-          {entity.state}
+          {prettyState(entity.state)}
           {typeof unit === 'string' && unit && <span className="hc-unit"> {unit}</span>}
         </p>
       );
@@ -254,11 +254,11 @@ export function EntityCard({ entity, disabled, busy, onAction, fav, hidden, onTo
     }
     case 'binary_sensor': {
       const words = BINARY_WORDS[String(entity.attributes.device_class)] ?? ['On', 'Off'];
-      control = <p className="hc-reading">{entity.state === 'on' ? words[0] : entity.state === 'off' ? words[1] : entity.state}</p>;
+      control = <p className="hc-reading">{entity.state === 'on' ? words[0] : entity.state === 'off' ? words[1] : prettyState(entity.state)}</p>;
       break;
     }
     default:
-      control = <p className="hc-reading">{entity.state}</p>;
+      control = <p className="hc-reading">{prettyState(entity.state)}</p>;
   }
 
   return (
@@ -269,23 +269,27 @@ export function EntityCard({ entity, disabled, busy, onAction, fav, hidden, onTo
         )}
         <div className="hc-card-title">
           <span id={nameId} className="hc-name">{name}</span>
-          <span className="hc-id">{entity.entity_id}</span>
+          <span className="hc-id" title={entity.entity_id}>{entity.entity_id}</span>
         </div>
-        {status && domain !== 'light' && domain !== 'switch' && domain !== 'fan' ? <span className="hc-pill">{status}</span> : null}
+        {status && domain !== 'light' && domain !== 'switch' && domain !== 'fan' ? <span className="hc-pill">{prettyState(status)}</span> : null}
         {busy && <span className="hc-spinner" role="img" aria-label="Sending command" />}
         {onToggleFav && (
           <button type="button" className="hc-icon-btn" aria-pressed={!!fav} aria-label={`Favourite ${name}`} title={fav ? 'Unfavourite' : 'Favourite'} onClick={onToggleFav}>
             {fav ? '★' : '☆'}
           </button>
         )}
-        {onToggleHidden && (
-          <button type="button" className="hc-icon-btn hc-text-btn" aria-pressed={!!hidden} aria-label={`Hide ${name}`} title={hidden ? 'Unhide' : 'Hide'} onClick={onToggleHidden}>
-            {hidden ? 'Unhide' : 'Hide'}
-          </button>
-        )}
       </div>
       <div className="hc-card-body">{control}</div>
-      {onToggleGroup && <GroupMenu name={name} all={groupNames ?? []} mine={inGroups ?? []} onToggle={onToggleGroup} />}
+      {(onToggleGroup || onToggleHidden) && (
+        <div className="hc-card-foot">
+          {onToggleGroup && <GroupMenu name={name} all={groupNames ?? []} mine={inGroups ?? []} onToggle={onToggleGroup} />}
+          {onToggleHidden && (
+            <button type="button" className="hc-icon-btn hc-text-btn" aria-pressed={!!hidden} aria-label={`Hide ${name}`} title={hidden ? 'Unhide' : 'Hide'} onClick={onToggleHidden}>
+              {hidden ? 'Unhide' : 'Hide'}
+            </button>
+          )}
+        </div>
+      )}
     </li>
   );
 }

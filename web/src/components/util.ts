@@ -168,3 +168,10 @@ export function sunTimes(entities: Entity[], timeZone?: string): { rise?: string
   };
   return { rise: fmt(a?.next_rising), set: fmt(a?.next_setting) };
 }
+
+/** HA state for display: "above_horizon" -> "Above horizon". Numbers pass through. */
+export function prettyState(s: string): string {
+  if (!s || /^-?\d/.test(s)) return s;
+  const t = s.replace(/_/g, ' ');
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
