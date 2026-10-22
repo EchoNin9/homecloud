@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Entity } from '../client';
-import { DEFAULT_PREFS, organize, prettyState, sunTimes, warnings } from './util';
+import { DEFAULT_PREFS, MAX_QUERIES, organize, prettyState, saveQuery, sunTimes, warnings } from './util';
 
 const e = (entity_id: string, name: string, last_changed = '2026-01-01T00:00:00Z'): Entity => ({
   entity_id,
@@ -106,5 +106,15 @@ describe('prettyState', () => {
     expect(prettyState('above_horizon')).toBe('Above horizon');
     expect(prettyState('12.4')).toBe('12.4');
     expect(prettyState('-3')).toBe('-3');
+  });
+});
+
+describe('saveQuery', () => {
+  it('dedupes newest-first, ignores blanks, refuses past the max', () => {
+    expect(saveQuery(['a', 'b'], ' b ')).toEqual(['b', 'a']);
+    expect(saveQuery(['a'], '  ')).toEqual(['a']);
+    const full = Array.from({ length: MAX_QUERIES }, (_, i) => `q${i}`);
+    expect(saveQuery(full, 'new')).toBeNull();
+    expect(saveQuery(full, 'q3')?.[0]).toBe('q3');
   });
 });
