@@ -128,3 +128,15 @@
 .hc-icon-btn:hover { background: var(--hc-surface-2); color: var(--hc-text); }
 .hc-icon-btn[aria-pressed='true']:not(.hc-text-btn) { color: #d97706; }
 .hc-text-btn { font-size: 0.75rem; }
+.hc-grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.hc-menu { position: relative; }
+.hc-menu > summary { list-style: none; display: inline-flex; align-items: center; }
+.hc-menu > summary::-webkit-details-marker { display: none; }
+.hc-menu-body {
+  position: absolute; z-index: 5; margin-top: 4px; min-width: 220px; max-width: min(320px, 90vw);
+  display: flex; flex-direction: column; gap: 6px; padding: 10px;
+  background: var(--hc-surface); border: 1px solid var(--hc-border); border-radius: 10px; box-shadow: 0 6px 24px rgb(0 0 0 / 0.15);
+}
+.hc-menu-body .hc-check { min-height: 32px; display: flex; align-items: center; gap: 8px; }
+.hc-menu-body .hc-input { min-height: 36px; flex: 1; min-width: 0; }
+.hc-card .hc-menu { align-self: flex-start; }

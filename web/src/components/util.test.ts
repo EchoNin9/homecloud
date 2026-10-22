@@ -41,6 +41,14 @@ describe('organize', () => {
       ['area:', ['light.a']],
     ]);
   });
+  it('custom groups: multi-membership, A-Z, ungrouped last', () => {
+    const p = { ...DEFAULT_PREFS, group: 'custom' as const, groups: { Zed: ['light.a', 'light.b'], Alpha: ['light.a'], Empty: [] } };
+    expect(ids(organize(all, '', p))).toEqual([
+      ['grp:Alpha', ['light.a']],
+      ['grp:Zed', ['light.a', 'light.b']],
+      ['grp:', ['switch.fan', 'sensor.temp']],
+    ]);
+  });
   it('applies the text filter', () => {
     expect(ids(organize(all, 'att', DEFAULT_PREFS))).toEqual([['light', ['light.a']]]);
   });
