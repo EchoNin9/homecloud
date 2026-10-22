@@ -96,15 +96,7 @@ export function App({ getToken: externalGetToken }: AppProps) {
       );
     case 'ready':
       return (
-        <>
-          {auth && (
-            <div className="app-bar">
-              <span>homecloud</span>
-              <button type="button" className="app-link" onClick={() => auth.logout()}>Sign out</button>
-            </div>
-          )}
-          {client && <HomeCloudDashboard client={client} />}
-        </>
+        client && <HomeCloudDashboard client={client} onSignOut={auth ? () => auth.logout() : undefined} />
       );
   }
 }

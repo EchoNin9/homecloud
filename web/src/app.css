@@ -5,5 +5,4 @@ body { margin: 0; background: #f5f6f8; color: #1b1f27; font: 15px/1.45 system-ui
 .app-center code { background: rgba(127, 127, 127, 0.2); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
 .app-btn { font: inherit; padding: 10px 18px; border-radius: 8px; border: 0; background: #2563eb; color: #fff; font-weight: 600; cursor: pointer; min-height: 44px; }
 .app-btn:focus-visible, .app-link:focus-visible { outline: 3px solid #60a5fa; outline-offset: 2px; }
-.app-bar { display: flex; justify-content: space-between; align-items: center; padding: 8px 16px; font-weight: 600; border-bottom: 1px solid rgba(127, 127, 127, 0.3); }
 .app-link { font: inherit; background: none; border: 0; color: inherit; text-decoration: underline; cursor: pointer; min-height: 44px; }
