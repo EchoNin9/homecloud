@@ -56,12 +56,19 @@ const domainRank = (d: string) => {
   return i === -1 ? ORDER.length : i;
 };
 
-/** Filter, hide, sort and group entities. Favourites get their own first section. */
+/** Filter, hide, sort and group entities. Favourites come first; hidden ones (if shown) last. */
 export function organize(entities: Entity[], filter: string, p: ViewPrefs): Section[] {
-  const favs = new Set(p.favs);
   const hidden = new Set(p.hidden);
   const cmp = p.sort === 'recent' ? byRecent : byName;
-  const shown = entities.filter((e) => (p.showHidden || !hidden.has(e.entity_id)) && matchesFilter(e, filter)).sort(cmp);
+  const matching = entities.filter((e) => matchesFilter(e, filter)).sort(cmp);
+  const out = grouped(matching.filter((e) => !hidden.has(e.entity_id)), p);
+  const hid = matching.filter((e) => hidden.has(e.entity_id));
+  if (p.showHidden && hid.length) out.push(['_hidden', 'Hidden', hid]);
+  return out;
+}
+
+function grouped(shown: Entity[], p: ViewPrefs): Section[] {
+  const favs = new Set(p.favs);
   const out: Section[] = [];
   const fav = shown.filter((e) => favs.has(e.entity_id));
   if (fav.length) out.push(['_fav', 'Favourites', fav]);
@@ -150,4 +157,14 @@ export function warnings(entities: Entity[], nowMs = Date.now()): Warning[] {
     }
   }
   return out.sort((x, y) => (x.kind === y.kind ? x.text.localeCompare(y.text) : x.kind === 'door' ? -1 : 1));
+}
+
+/** "HH:MM" (24h) of HA's next sunrise/sunset from sun.sun, in the viewer's time zone. */
+export function sunTimes(entities: Entity[], timeZone?: string): { rise?: string; set?: string } {
+  const a = entities.find((e) => e.entity_id === 'sun.sun')?.attributes;
+  const fmt = (v: unknown) => {
+    const t = typeof v === 'string' ? Date.parse(v) : NaN;
+    return Number.isNaN(t) ? undefined : new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone }).format(t);
+  };
+  return { rise: fmt(a?.next_rising), set: fmt(a?.next_setting) };
 }

@@ -40,6 +40,7 @@ export function mockApiPlugin(): Plugin {
           e('sensor.living_room_humidity', '48', { unit_of_measurement: '%', device_class: 'humidity' }),
           e('sensor.power_usage', '412', { unit_of_measurement: 'W' }),
           e('binary_sensor.front_door', 'off', { device_class: 'door' }),
+          e('sun.sun', 'above_horizon', { friendly_name: 'Sun', next_rising: new Date(Date.now() + 14 * 3600_000).toISOString(), next_setting: new Date(Date.now() + 3 * 3600_000).toISOString() }),
           { ...e('binary_sensor.back_door', 'on', { device_class: 'door', friendly_name: 'Back door' }), last_changed: new Date(Date.now() - 20 * 60_000).toISOString() },
           e('sensor.nas_drive_1_temperature', '54', { device_class: 'temperature', unit_of_measurement: '°C', friendly_name: 'NAS (Drive 1) Temperature' }),
           e('sensor.nas_drive_2_temperature', '38', { device_class: 'temperature', unit_of_measurement: '°C', friendly_name: 'NAS (Drive 2) Temperature' }),

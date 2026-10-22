@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { Entity, Home, HomeCloudClient } from '../client';
 import { EntityCard, type Action } from './EntityCard';
 import { usePoll } from './usePoll';
-import { DEFAULT_PREFS, domainOf, errorMessage, formatLastSeen, organize, warnings, type ViewPrefs } from './util';
+import { DEFAULT_PREFS, domainOf, errorMessage, formatLastSeen, organize, sunTimes, warnings, type ViewPrefs } from './util';
 import './dashboard.css';
 
 export interface HomeCloudDashboardProps {
@@ -11,6 +11,8 @@ export interface HomeCloudDashboardProps {
   homeId?: string;
   /** Poll interval in ms while the tab is visible. Default 5000. */
   pollMs?: number;
+  /** Shows a "Sign out" button in the title bar. */
+  onSignOut?: () => void;
 }
 
 interface Patch {
@@ -61,7 +63,7 @@ function toggleInGroup(groups: Record<string, string[]>, name: string, id: strin
   return next.length ? { ...rest, [name]: next } : rest;
 }
 
-export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000 }: HomeCloudDashboardProps) {
+export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, onSignOut }: HomeCloudDashboardProps) {
   const [homes, setHomes] = useState<Home[] | null>(null);
   const [selected, setSelected] = useState<string | undefined>(pinnedHome);
   const [entities, setEntities] = useState<Entity[] | null>(null);
@@ -77,6 +79,10 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000 }
   const searchId = useId();
   const [prefs, setPrefs] = usePrefs(pinnedHome ?? selected);
   const [navOpen, setNavOpen] = useState(false);
+  const [selecting, setSelecting] = useState(false);
+  const [picked, setPicked] = useState<string[]>([]);
+  const [bulkGroup, setBulkGroup] = useState('');
+  const groupListId = useId();
   const navId = useId();
 
   useEffect(() => {
@@ -154,6 +160,21 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000 }
     return organize(merged, filter, prefs);
   }, [entities, patches, filter, prefs]);
   const alerts = useMemo(() => warnings(entities ?? []), [entities]);
+  const sun = useMemo(() => sunTimes(entities ?? []), [entities]);
+  const shownIds = groups.flatMap(([, , list]) => list.map((e) => e.entity_id));
+  const stopSelecting = () => {
+    setSelecting(false);
+    setPicked([]);
+  };
+  const addAll = (list: string[], ids: string[]) => [...new Set([...list, ...ids])];
+  const dropAll = (list: string[], ids: string[]) => list.filter((x) => !ids.includes(x));
+  const bulkToGroup = (add: boolean) => {
+    const g = bulkGroup.trim();
+    if (!g) return;
+    const next = add ? addAll(prefs.groups[g] ?? [], picked) : dropAll(prefs.groups[g] ?? [], picked);
+    const { [g]: _old, ...rest } = prefs.groups;
+    setPrefs({ groups: next.length ? { ...rest, [g]: next } : rest });
+  };
   const sectionId = (key: string) => `${homeLabelId}-${key}`;
   const goTo = (id: string) => {
     setNavOpen(false);
@@ -194,6 +215,26 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000 }
 
   return (
     <section className="hc-dash" aria-label="homecloud dashboard">
+      <div className="hc-topbar">
+        <span className="hc-brand">homecloud</span>
+        {(sun.rise || sun.set) && (
+          <span className="hc-sun">
+            {sun.rise && (
+              <span title="Next sunrise">
+                <span aria-hidden="true">☀︎</span> sunrise {sun.rise}
+              </span>
+            )}
+            {sun.set && (
+              <span title="Next sunset">
+                <span aria-hidden="true">☾</span> sunset {sun.set}
+              </span>
+            )}
+          </span>
+        )}
+        {onSignOut && (
+          <button type="button" className="hc-link" onClick={onSignOut}>Sign out</button>
+        )}
+      </div>
       <header className="hc-header">
         <div className="hc-home">
           <button
@@ -302,6 +343,9 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000 }
             <option value="none">None</option>
           </select>
         </label>
+        <button type="button" className="hc-btn" aria-pressed={selecting} onClick={() => (selecting ? stopSelecting() : setSelecting(true))}>
+          {selecting ? 'Done selecting' : 'Select'}
+        </button>
         {prefs.group === 'custom' && Object.keys(prefs.groups).length > 0 && (
           <details className="hc-menu">
             <summary className="hc-btn">Manage groups</summary>
@@ -380,6 +424,9 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000 }
                   hidden={prefs.hidden.includes(e.entity_id)}
                   onToggleFav={() => setPrefs({ favs: toggle(prefs.favs, e.entity_id) })}
                   onToggleHidden={() => setPrefs({ hidden: toggle(prefs.hidden, e.entity_id) })}
+                  selecting={selecting}
+                  selected={picked.includes(e.entity_id)}
+                  onSelect={() => setPicked((p) => toggle(p, e.entity_id))}
                   groupNames={groupNames}
                   inGroups={groupNames.filter((g) => prefs.groups[g].includes(e.entity_id))}
                   onToggleGroup={(g) => setPrefs({ groups: toggleInGroup(prefs.groups, g, e.entity_id) })}
@@ -388,6 +435,36 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000 }
             </ul>
           </section>
         ))
+      )}
+
+      {selecting && (
+        <div className="hc-bulk" role="region" aria-label="Bulk actions">
+          <span className="hc-bulk-count">{picked.length} selected</span>
+          <button type="button" className="hc-btn" onClick={() => setPicked((p) => addAll(p, shownIds))}>
+            Select all shown ({shownIds.length})
+          </button>
+          <button type="button" className="hc-btn" disabled={!picked.length} onClick={() => setPicked([])}>Clear</button>
+          <span className="hc-bulk-group">
+            <input
+              className="hc-input"
+              list={groupListId}
+              placeholder="Group name"
+              aria-label="Group name for selected"
+              maxLength={40}
+              value={bulkGroup}
+              onChange={(e) => setBulkGroup(e.target.value)}
+            />
+            <datalist id={groupListId}>
+              {groupNames.map((g) => <option key={g} value={g} />)}
+            </datalist>
+            <button type="button" className="hc-btn hc-btn-primary" disabled={!picked.length || !bulkGroup.trim()} onClick={() => bulkToGroup(true)}>Add to group</button>
+            <button type="button" className="hc-btn" disabled={!picked.length || !prefs.groups[bulkGroup.trim()]} onClick={() => bulkToGroup(false)}>Remove</button>
+          </span>
+          <button type="button" className="hc-btn" disabled={!picked.length} onClick={() => setPrefs({ favs: addAll(prefs.favs, picked) })}>Favourite</button>
+          <button type="button" className="hc-btn" disabled={!picked.length} onClick={() => setPrefs({ hidden: addAll(prefs.hidden, picked) })}>Hide</button>
+          <button type="button" className="hc-btn" disabled={!picked.length} onClick={() => setPrefs({ hidden: dropAll(prefs.hidden, picked) })}>Unhide</button>
+          <button type="button" className="hc-btn" onClick={stopSelecting}>Done</button>
+        </div>
       )}
 
       <div className="hc-toasts" role="region" aria-label="Notifications" aria-live="assertive">
