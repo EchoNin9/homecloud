@@ -24,6 +24,9 @@ interface Props {
   groupNames?: string[];
   inGroups?: string[];
   onToggleGroup?: (name: string) => void;
+  selecting?: boolean;
+  selected?: boolean;
+  onSelect?: () => void;
 }
 
 function GroupMenu({ name, all, mine, onToggle }: { name: string; all: string[]; mine: string[]; onToggle: (g: string) => void }) {
@@ -176,7 +179,7 @@ const BINARY_WORDS: Record<string, [string, string]> = {
   smoke: ['Smoke', 'Clear'],
 };
 
-export function EntityCard({ entity, disabled, busy, onAction, fav, hidden, onToggleFav, onToggleHidden, groupNames, inGroups, onToggleGroup }: Props) {
+export function EntityCard({ entity, disabled, busy, onAction, fav, hidden, onToggleFav, onToggleHidden, groupNames, inGroups, onToggleGroup, selecting, selected, onSelect }: Props) {
   const nameId = useId();
   const domain = domainOf(entity.entity_id);
   const name = friendlyName(entity);
@@ -259,8 +262,11 @@ export function EntityCard({ entity, disabled, busy, onAction, fav, hidden, onTo
   }
 
   return (
-    <li id={`hc-e-${entity.entity_id}`} className="hc-card" data-domain={domain} data-on={isOn || undefined} data-hidden={hidden || undefined} aria-busy={busy || undefined}>
+    <li id={`hc-e-${entity.entity_id}`} className="hc-card" data-domain={domain} data-on={isOn || undefined} data-hidden={hidden || undefined} data-selected={selected || undefined} aria-busy={busy || undefined}>
       <div className="hc-card-head">
+        {selecting && (
+          <input type="checkbox" className="hc-pick" checked={!!selected} onChange={onSelect} aria-label={`Select ${name}`} />
+        )}
         <div className="hc-card-title">
           <span id={nameId} className="hc-name">{name}</span>
           <span className="hc-id">{entity.entity_id}</span>

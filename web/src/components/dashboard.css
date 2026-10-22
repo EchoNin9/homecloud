@@ -172,3 +172,23 @@
 .hc-nav-link:hover { background: var(--hc-surface-2); }
 .hc-backdrop { position: fixed; inset: 0; z-index: 19; background: rgb(0 0 0 / 0.35); }
 @media (prefers-reduced-motion: reduce) { .hc-nav { transition: none; } .hc-card.hc-flash { animation: none; } }
+
+.hc-topbar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px;
+  margin: -16px -16px 16px; padding: 8px 16px; border-bottom: 1px solid var(--hc-border); background: var(--hc-surface);
+}
+.hc-brand { font-weight: 700; }
+.hc-sun { display: inline-flex; gap: 14px; color: var(--hc-muted); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+.hc-link { margin-left: auto; font: inherit; color: inherit; background: none; border: 0; text-decoration: underline; cursor: pointer; min-height: 40px; }
+
+.hc-pick { width: 20px; height: 20px; margin: 2px 0 0; flex: none; accent-color: var(--hc-accent); cursor: pointer; }
+.hc-card[data-selected] { border-color: var(--hc-accent); box-shadow: 0 0 0 2px var(--hc-accent); }
+.hc-bulk {
+  position: sticky; bottom: 0; z-index: 10; margin: 16px -16px -16px; padding: 10px 16px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  background: var(--hc-surface); border-top: 1px solid var(--hc-border); box-shadow: 0 -4px 16px rgb(0 0 0 / 0.15);
+}
+.hc-bulk-count { font-weight: 600; margin-right: 4px; }
+.hc-bulk-group { display: inline-flex; gap: 6px; flex: 1 1 280px; }
+.hc-bulk-group .hc-input { flex: 1; min-width: 0; }
+.hc-btn[aria-pressed='true'] { border-color: var(--hc-accent); color: var(--hc-accent); }

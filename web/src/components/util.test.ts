@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Entity } from '../client';
-import { DEFAULT_PREFS, organize, warnings } from './util';
+import { DEFAULT_PREFS, organize, sunTimes, warnings } from './util';
 
 const e = (entity_id: string, name: string, last_changed = '2026-01-01T00:00:00Z'): Entity => ({
   entity_id,
@@ -30,7 +30,7 @@ describe('organize', () => {
       ['_fav', ['switch.fan']],
       ['_all', ['sensor.temp', 'light.a']],
     ]);
-    expect(ids(organize(all, '', { ...p, showHidden: true }))[1][1]).toContain('light.b');
+    expect(ids(organize(all, '', { ...p, showHidden: true })).at(-1)).toEqual(['_hidden', ['light.b']]);
   });
   it('groups by area, no-area last', () => {
     const withArea = (x: Entity, a: string): Entity => ({ ...x, attributes: { ...x.attributes, homecloud_area: a } });
@@ -78,5 +78,16 @@ describe('warnings', () => {
       ['drive', 'sensor.nas_drive_1_temperature'],
       ['drive', 'sensor.nas_drive_3_temperature'],
     ]);
+  });
+});
+
+describe('sunTimes', () => {
+  it('formats next rising/setting as 24h local time', () => {
+    const sun: Entity = {
+      entity_id: 'sun.sun', state: 'above_horizon', last_changed: '',
+      attributes: { next_rising: '2026-10-22T11:28:00+00:00', next_setting: '2026-10-22T22:15:00+00:00' },
+    };
+    expect(sunTimes([sun], 'America/Toronto')).toEqual({ rise: '07:28', set: '18:15' });
+    expect(sunTimes([])).toEqual({ rise: undefined, set: undefined });
   });
 });
