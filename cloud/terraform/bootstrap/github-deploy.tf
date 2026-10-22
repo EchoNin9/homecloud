@@ -7,6 +7,12 @@ variable "github_repo" {
   default     = null
 }
 
+variable "github_sub_prefix" {
+  description = "OIDC 'sub' prefix if the repo uses immutable subjects (repo:owner@id/name@id). Null = \"repo:{github_repo}\". Check with: gh api repos/OWNER/REPO/actions/oidc/customization/sub"
+  type        = string
+  default     = null
+}
+
 variable "deploy_branch" {
   type    = string
   default = "main"
@@ -44,7 +50,7 @@ data "aws_iam_policy_document" "deploy_trust" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repo}:ref:refs/heads/${var.deploy_branch}"]
+      values   = ["${coalesce(var.github_sub_prefix, "repo:${var.github_repo}")}:ref:refs/heads/${var.deploy_branch}"]
     }
   }
 }

@@ -11,7 +11,7 @@ from typing import Any
 from . import __version__
 from .commands import CommandValidator
 from .config import Config, ConfigError, load
-from .filters import EntityFilter
+from .filters import AREA_ATTR, LAT_ATTR, LON_ATTR, EntityFilter
 from .ha import HAClient, HAError
 from .iot import IoTClient, now_ms
 
@@ -68,6 +68,16 @@ class Bridge:
         # ponytail: areas refresh with each snapshot (<= 15 min stale); subscribe to
         # registry-updated events if that lag ever matters.
         self._areas: dict[str, str] = {}
+        self._location: tuple[float, float] | None = None
+
+    def _extra(self, entity_id: str) -> dict[str, Any]:
+        """Bridge-added attributes: the HA area, and HA's location on sun.sun."""
+        out: dict[str, Any] = {}
+        if area := self._areas.get(entity_id):
+            out[AREA_ATTR] = area
+        if entity_id == "sun.sun" and self._location:
+            out[LAT_ATTR], out[LON_ATTR] = self._location
+        return out
 
     # --- state flow ---
     def on_state_changed(self, entity_id: str, state: dict[str, Any] | None) -> None:
@@ -77,7 +87,7 @@ class Bridge:
             self._pending.pop(entity_id, None)  # latest wins: removal cancels a queued update
             self._removed.add(entity_id)
         else:
-            ent = self.flt.export(state, self._areas.get(entity_id))
+            ent = self.flt.export(state, self._extra(entity_id))
             if not ent:
                 return
             self._removed.discard(entity_id)  # ...and a later state cancels the removal
@@ -122,9 +132,13 @@ class Bridge:
                     self._areas = await self.ha.get_areas()
                 except (HAError, asyncio.TimeoutError, KeyError, TypeError) as exc:
                     log.warning("area lookup failed, keeping previous areas: %s", exc)
+                try:
+                    self._location = await self.ha.get_location()
+                except (HAError, asyncio.TimeoutError, TypeError, ValueError) as exc:
+                    log.warning("location lookup failed: %s", exc)
                 states = await self.ha.get_states()
                 ents = [e for s in states
-                        if (e := self.flt.export(s, self._areas.get(s.get("entity_id", ""))))]
+                        if (e := self.flt.export(s, self._extra(s.get("entity_id", ""))))]
                 await self._send(ents, True)
                 log.info("snapshot sent: %d entities", len(ents))
             except (HAError, asyncio.TimeoutError) as exc:

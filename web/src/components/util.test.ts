@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Entity } from '../client';
-import { DEFAULT_PREFS, organize, sunTimes, warnings } from './util';
+import { DEFAULT_PREFS, organize, prettyState, sunTimes, warnings } from './util';
 
 const e = (entity_id: string, name: string, last_changed = '2026-01-01T00:00:00Z'): Entity => ({
   entity_id,
@@ -82,12 +82,29 @@ describe('warnings', () => {
 });
 
 describe('sunTimes', () => {
-  it('formats next rising/setting as 24h local time', () => {
-    const sun: Entity = {
-      entity_id: 'sun.sun', state: 'above_horizon', last_changed: '',
-      attributes: { next_rising: '2026-10-22T11:28:00+00:00', next_setting: '2026-10-22T22:15:00+00:00' },
-    };
-    expect(sunTimes([sun], 'America/Toronto')).toEqual({ rise: '07:28', set: '18:15' });
-    expect(sunTimes([])).toEqual({ rise: undefined, set: undefined });
+  const sun = (attrs: Record<string, unknown>): Entity => ({ entity_id: 'sun.sun', state: 'above_horizon', last_changed: '', attributes: attrs });
+  const mins = (hhmm?: string) => (hhmm ? Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3)) : NaN);
+  it("computes today's times from the home location (within 3 min of published tables)", () => {
+    // London, 2026-03-20: sunrise ~06:02, sunset ~18:14 GMT.
+    const ldn = sun({ homecloud_latitude: 51.5074, homecloud_longitude: -0.1278 });
+    const r = sunTimes([ldn], 'Europe/London', Date.parse('2026-03-20T21:00:00Z'));
+    expect(Math.abs(mins(r.rise) - (6 * 60 + 2))).toBeLessThanOrEqual(3);
+    expect(Math.abs(mins(r.set) - (18 * 60 + 14))).toBeLessThanOrEqual(3);
+    // Same day, early morning, still the same day's values; next day differs.
+    expect(sunTimes([ldn], 'Europe/London', Date.parse('2026-03-20T00:10:00Z'))).toEqual(r);
+    expect(sunTimes([ldn], 'Europe/London', Date.parse('2026-03-21T00:10:00Z'))).not.toEqual(r);
+  });
+  it('falls back to next_rising/next_setting without a location', () => {
+    const s = sun({ next_rising: '2026-10-22T11:28:00+00:00', next_setting: '2026-10-22T22:15:00+00:00' });
+    expect(sunTimes([s], 'America/Toronto')).toEqual({ rise: '07:28', set: '18:15' });
+    expect(sunTimes([])).toEqual({});
+  });
+});
+
+describe('prettyState', () => {
+  it('humanizes words, leaves numbers', () => {
+    expect(prettyState('above_horizon')).toBe('Above horizon');
+    expect(prettyState('12.4')).toBe('12.4');
+    expect(prettyState('-3')).toBe('-3');
   });
 });

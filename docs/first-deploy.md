@@ -173,7 +173,10 @@ certificate, the DynamoDB table or the user pool.
 1. The account needs GitHub's OIDC provider (`token.actions.githubusercontent.com`) once.
 2. In `bootstrap/terraform.tfvars` set `github_repo = "owner/repo"` and apply the bootstrap
    stack. It creates role `github-actions-homecloud-deploy`, which only `main` of that repo can
-   assume. IAM, S3 and DynamoDB access is limited to `homecloud-*` names.
+   assume. IAM, S3 and DynamoDB access is limited to `homecloud-*` names. Newer repos use
+   GitHub's immutable OIDC subject. Run `gh api repos/OWNER/REPO/actions/oidc/customization/sub`,
+   and if `use_immutable_subject` is true, set `github_sub_prefix` to the `sub_claim_prefix` it
+   prints. Otherwise the role can't be assumed (`Not authorized to perform sts:AssumeRoleWithWebIdentity`).
 3. Copy the stack's gitignored files to where CI reads them:
    `aws s3 cp examples/standalone/terraform.tfvars s3://<state-bucket>/homecloud/local-files/examples/standalone/terraform.tfvars`
    (same for `backend.hcl`). **From now on the S3 copy is what deploys.** Re-upload after you edit
