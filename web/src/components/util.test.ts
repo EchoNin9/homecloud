@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Entity } from '../client';
-import { DEFAULT_PREFS, organize } from './util';
+import { DEFAULT_PREFS, organize, warnings } from './util';
 
 const e = (entity_id: string, name: string, last_changed = '2026-01-01T00:00:00Z'): Entity => ({
   entity_id,
@@ -51,5 +51,32 @@ describe('organize', () => {
   });
   it('applies the text filter', () => {
     expect(ids(organize(all, 'att', DEFAULT_PREFS))).toEqual([['light', ['light.a']]]);
+  });
+});
+
+describe('warnings', () => {
+  const now = Date.parse('2026-01-01T01:00:00Z');
+  const door = (id: string, state: string, changed: string, dc = 'door'): Entity => ({
+    entity_id: id, state, last_changed: changed, attributes: { device_class: dc, friendly_name: id },
+  });
+  const temp = (id: string, state: string, unit = '°C'): Entity => ({
+    entity_id: id, state, last_changed: '', attributes: { device_class: 'temperature', unit_of_measurement: unit, friendly_name: id },
+  });
+  it('flags doors open past the limit and hot drives only', () => {
+    const w = warnings([
+      door('binary_sensor.old', 'on', '2026-01-01T00:50:00Z'),
+      door('binary_sensor.fresh', 'on', '2026-01-01T00:58:00Z'),
+      door('binary_sensor.shut', 'off', '2026-01-01T00:00:00Z'),
+      door('binary_sensor.motion', 'on', '2026-01-01T00:00:00Z', 'motion'),
+      temp('sensor.nas_drive_1_temperature', '51'),
+      temp('sensor.nas_drive_2_temperature', '50'),
+      temp('sensor.nas_drive_3_temperature', '130', '°F'),
+      temp('sensor.nas_temperature', '70'),
+    ], now);
+    expect(w.map((x) => [x.kind, x.entity.entity_id])).toEqual([
+      ['door', 'binary_sensor.old'],
+      ['drive', 'sensor.nas_drive_1_temperature'],
+      ['drive', 'sensor.nas_drive_3_temperature'],
+    ]);
   });
 });

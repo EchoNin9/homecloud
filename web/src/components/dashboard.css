@@ -140,3 +140,35 @@
 .hc-menu-body .hc-check { min-height: 32px; display: flex; align-items: center; gap: 8px; }
 .hc-menu-body .hc-input { min-height: 36px; flex: 1; min-width: 0; }
 .hc-card .hc-menu { align-self: flex-start; }
+
+/* Warnings row: chips ~1/4 the area of a device card (half width, short). */
+.hc-dash { --hc-door: #dc2626; --hc-drive: #db2777; }
+.hc-warnings { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.hc-warn {
+  font: inherit; text-align: left; cursor: pointer; color: #fff; border: 0; border-radius: 10px;
+  width: 120px; min-height: 56px; padding: 6px 10px; display: flex; flex-direction: column; justify-content: center;
+}
+.hc-warn[data-kind='door'] { background: var(--hc-door); }
+.hc-warn[data-kind='drive'] { background: var(--hc-drive); }
+.hc-warn:hover { filter: brightness(1.1); }
+.hc-warn-kind { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.9; }
+.hc-warn-text { font-size: 0.8rem; line-height: 1.2; overflow-wrap: anywhere; }
+.hc-card.hc-flash { animation: hc-flash 1.2s ease-out; }
+@keyframes hc-flash { from { box-shadow: 0 0 0 4px var(--hc-accent); } to { box-shadow: 0 0 0 0 transparent; } }
+
+/* Slide-out nav */
+.hc-nav {
+  position: fixed; inset: 0 auto 0 0; z-index: 20; width: min(280px, 85vw); padding: 12px; overflow-y: auto;
+  background: var(--hc-surface); border-right: 1px solid var(--hc-border); box-shadow: 4px 0 24px rgb(0 0 0 / 0.2);
+  transform: translateX(-105%); transition: transform 0.2s ease; visibility: hidden;
+}
+.hc-nav[data-open] { transform: none; visibility: visible; }
+.hc-nav ul { list-style: none; margin: 0; padding: 0; }
+.hc-nav-head { display: flex; justify-content: space-between; align-items: center; font-weight: 600; margin-bottom: 8px; }
+.hc-nav-link {
+  font: inherit; color: inherit; background: none; border: 0; width: 100%; text-align: left;
+  padding: 10px 8px; min-height: 44px; border-radius: 8px; cursor: pointer;
+}
+.hc-nav-link:hover { background: var(--hc-surface-2); }
+.hc-backdrop { position: fixed; inset: 0; z-index: 19; background: rgb(0 0 0 / 0.35); }
+@media (prefers-reduced-motion: reduce) { .hc-nav { transition: none; } .hc-card.hc-flash { animation: none; } }
