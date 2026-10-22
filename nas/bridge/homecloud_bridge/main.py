@@ -65,6 +65,9 @@ class Bridge:
         self._removed: set[str] = set()
         self._dirty = asyncio.Event()
         self._snap_req = asyncio.Event()
+        # ponytail: areas refresh with each snapshot (<= 15 min stale); subscribe to
+        # registry-updated events if that lag ever matters.
+        self._areas: dict[str, str] = {}
 
     # --- state flow ---
     def on_state_changed(self, entity_id: str, state: dict[str, Any] | None) -> None:
@@ -74,7 +77,7 @@ class Bridge:
             self._pending.pop(entity_id, None)  # latest wins: removal cancels a queued update
             self._removed.add(entity_id)
         else:
-            ent = self.flt.export(state)
+            ent = self.flt.export(state, self._areas.get(entity_id))
             if not ent:
                 return
             self._removed.discard(entity_id)  # ...and a later state cancels the removal
@@ -115,8 +118,13 @@ class Bridge:
             try:
                 self._removed.clear()
                 self._pending.clear()  # the snapshot supersedes anything queued
+                try:
+                    self._areas = await self.ha.get_areas()
+                except (HAError, asyncio.TimeoutError, KeyError, TypeError) as exc:
+                    log.warning("area lookup failed, keeping previous areas: %s", exc)
                 states = await self.ha.get_states()
-                ents = [e for s in states if (e := self.flt.export(s))]
+                ents = [e for s in states
+                        if (e := self.flt.export(s, self._areas.get(s.get("entity_id", ""))))]
                 await self._send(ents, True)
                 log.info("snapshot sent: %d entities", len(ents))
             except (HAError, asyncio.TimeoutError) as exc:

@@ -23,8 +23,14 @@ export function domainTitle(d: string): string {
   return TITLES[d] ?? d.charAt(0).toUpperCase() + d.slice(1).replace(/_/g, ' ');
 }
 
+/** Area name the bridge adds (contract: `homecloud_area`), or '' if none. */
+export function areaOf(e: Entity): string {
+  const a = e.attributes.homecloud_area;
+  return typeof a === 'string' ? a : '';
+}
+
 export type SortKey = 'name' | 'recent';
-export type GroupKey = 'domain' | 'none';
+export type GroupKey = 'domain' | 'area' | 'none';
 
 export interface ViewPrefs {
   sort: SortKey;
@@ -63,6 +69,15 @@ export function organize(entities: Entity[], filter: string, p: ViewPrefs): Sect
     return out;
   }
   const m = new Map<string, Entity[]>();
+  if (p.group === 'area') {
+    for (const e of rest) {
+      const a = areaOf(e);
+      (m.get(a) ?? m.set(a, []).get(a)!).push(e);
+    }
+    // Named areas A-Z, then entities with no area ('' key) last.
+    const areas = [...m.entries()].sort(([a], [b]) => (!a ? 1 : !b ? -1 : a.localeCompare(b)));
+    return out.concat(areas.map(([a, list]): Section => [`area:${a}`, a || 'No area', list]));
+  }
   for (const e of rest) {
     const d = domainOf(e.entity_id);
     (m.get(d) ?? m.set(d, []).get(d)!).push(e);
@@ -74,7 +89,7 @@ export function organize(entities: Entity[], filter: string, p: ViewPrefs): Sect
 export function matchesFilter(e: Entity, q: string): boolean {
   if (!q) return true;
   const needle = q.trim().toLowerCase();
-  return friendlyName(e).toLowerCase().includes(needle) || e.entity_id.toLowerCase().includes(needle);
+  return [friendlyName(e), e.entity_id, areaOf(e)].some((s) => s.toLowerCase().includes(needle));
 }
 
 export function formatLastSeen(ts: number | null | undefined, nowMs = Date.now()): string {

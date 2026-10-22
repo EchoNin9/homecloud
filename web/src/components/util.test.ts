@@ -32,6 +32,15 @@ describe('organize', () => {
     ]);
     expect(ids(organize(all, '', { ...p, showHidden: true }))[1][1]).toContain('light.b');
   });
+  it('groups by area, no-area last', () => {
+    const withArea = (x: Entity, a: string): Entity => ({ ...x, attributes: { ...x.attributes, homecloud_area: a } });
+    const list = [withArea(all[0], 'Office'), withArea(all[1], 'Bedroom'), all[2]];
+    expect(ids(organize(list, '', { ...DEFAULT_PREFS, group: 'area' }))).toEqual([
+      ['area:Bedroom', ['light.b']],
+      ['area:Office', ['sensor.temp']],
+      ['area:', ['light.a']],
+    ]);
+  });
   it('applies the text filter', () => {
     expect(ids(organize(all, 'att', DEFAULT_PREFS))).toEqual([['light', ['light.a']]]);
   });
