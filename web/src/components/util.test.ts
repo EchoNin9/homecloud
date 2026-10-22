@@ -118,3 +118,10 @@ describe('saveQuery', () => {
     expect(saveQuery(full, 'q3')?.[0]).toBe('q3');
   });
 });
+
+describe('drive warning label', () => {
+  it('is short', () => {
+    const e: Entity = { entity_id: 'sensor.nas2_drive_1_temperature', state: '54', last_changed: '', attributes: { friendly_name: 'NAS2 (Drive 1) Temperature', unit_of_measurement: '°C' } };
+    expect(warnings([e])[0].text).toBe('NAS2 Drive 1 · 54°C');
+  });
+});

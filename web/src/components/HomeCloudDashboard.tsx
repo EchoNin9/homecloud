@@ -392,7 +392,7 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
             ) : (
               <ul>
                 {groupNames.map((g) => (
-                  <li key={g}>
+                  <li key={g} className="hc-nav-row">
                     <button
                       type="button"
                       className="hc-nav-link"
@@ -403,6 +403,33 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
                       }}
                     >
                       {g} <span className="hc-count">{prefs.groups[g].length}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="hc-icon-btn"
+                      aria-label={`Rename group ${g}`}
+                      title="Rename"
+                      onClick={() => {
+                        const n = window.prompt('Rename group', g)?.trim();
+                        if (n && n !== g && !prefs.groups[n]) {
+                          const { [g]: ids, ...rest } = prefs.groups;
+                          setPrefs({ groups: { ...rest, [n]: ids } });
+                        }
+                      }}
+                    >
+                      ✎
+                    </button>
+                    <button
+                      type="button"
+                      className="hc-icon-btn"
+                      aria-label={`Delete group ${g}`}
+                      title="Delete"
+                      onClick={() => {
+                        const { [g]: _gone, ...rest } = prefs.groups;
+                        setPrefs({ groups: rest });
+                      }}
+                    >
+                      ×
                     </button>
                   </li>
                 ))}
@@ -455,50 +482,13 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
           <select className="hc-select" value={prefs.group} onChange={(e) => setPrefs({ group: e.target.value as ViewPrefs['group'] })}>
             <option value="domain">By type</option>
             <option value="area">By area</option>
-            <option value="custom">My groups</option>
+            <option value="custom">My Groups</option>
             <option value="none">None</option>
           </select>
         </label>
         <button type="button" className="hc-btn" aria-pressed={selecting} onClick={() => (selecting ? stopSelecting() : setSelecting(true))}>
           {selecting ? 'Done selecting' : 'Select'}
         </button>
-        {prefs.group === 'custom' && Object.keys(prefs.groups).length > 0 && (
-          <details className="hc-menu">
-            <summary className="hc-btn">Manage groups</summary>
-            <div className="hc-menu-body">
-              {Object.keys(prefs.groups)
-                .sort((a, b) => a.localeCompare(b))
-                .map((g) => (
-                  <div key={g} className="hc-row">
-                    <span className="hc-grow">{g} <span className="hc-count">{prefs.groups[g].length}</span></span>
-                    <button
-                      type="button"
-                      className="hc-btn"
-                      onClick={() => {
-                        const n = window.prompt('Rename group', g)?.trim();
-                        if (n && n !== g && !prefs.groups[n]) {
-                          const { [g]: ids, ...rest } = prefs.groups;
-                          setPrefs({ groups: { ...rest, [n]: ids } });
-                        }
-                      }}
-                    >
-                      Rename<span className="hc-sr"> {g}</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="hc-btn"
-                      onClick={() => {
-                        const { [g]: _gone, ...rest } = prefs.groups;
-                        setPrefs({ groups: rest });
-                      }}
-                    >
-                      Delete<span className="hc-sr"> {g}</span>
-                    </button>
-                  </div>
-                ))}
-            </div>
-          </details>
-        )}
         {hiddenCount > 0 && (
           <label className="hc-field hc-check">
             <input type="checkbox" checked={prefs.showHidden} onChange={(e) => setPrefs({ showHidden: e.target.checked })} />
