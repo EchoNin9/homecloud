@@ -199,7 +199,7 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000 }
             id={searchId}
             type="search"
             className="hc-input"
-            placeholder="Filter by name or id"
+            placeholder="Filter by name, id or area"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
           />
@@ -218,6 +218,7 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000 }
           <span>Group</span>
           <select className="hc-select" value={prefs.group} onChange={(e) => setPrefs({ group: e.target.value as ViewPrefs['group'] })}>
             <option value="domain">By type</option>
+            <option value="area">By area</option>
             <option value="none">None</option>
           </select>
         </label>

@@ -6,6 +6,7 @@ from fnmatch import fnmatchcase
 from typing import Any, Iterable, Mapping
 
 MAX_ATTR_BYTES = 4096
+AREA_ATTR = "homecloud_area"
 
 
 def _size(obj: Any) -> int:
@@ -31,14 +32,17 @@ class EntityFilter:
             return False
         return not any(fnmatchcase(entity_id, pat) for pat in self.excludes)
 
-    def export(self, state: Mapping[str, Any]) -> dict[str, Any] | None:
+    def export(self, state: Mapping[str, Any], area: str | None = None) -> dict[str, Any] | None:
         """HA state object -> contract entity dict, or None if filtered out."""
         entity_id = state.get("entity_id")
         if not isinstance(entity_id, str) or not self.allows(entity_id):
             return None
+        attrs = cap_attributes(state.get("attributes") or {})
+        if area:
+            attrs[AREA_ATTR] = area
         return {
             "entity_id": entity_id,
             "state": state.get("state"),
-            "attributes": cap_attributes(state.get("attributes") or {}),
+            "attributes": attrs,
             "last_changed": state.get("last_changed"),
         }

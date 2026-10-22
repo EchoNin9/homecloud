@@ -9,7 +9,8 @@ from homecloud_bridge.ha import HAClient, HAError
 class FakeWS:
     """Scripted HA websocket: answers requests automatically, can inject events."""
 
-    def __init__(self, token_ok=True, states=None, service_error=None):
+    def __init__(self, token_ok=True, states=None, service_error=None, results=None):
+        self.results = results or {}
         self.q: asyncio.Queue = asyncio.Queue()
         self.sent: list[dict] = []
         self.token_ok = token_ok
@@ -39,6 +40,8 @@ class FakeWS:
         res = {"id": m["id"], "type": "result", "success": True, "result": None}
         if m["type"] == "get_states":
             res["result"] = self.states
+        if m["type"] in self.results:
+            res["result"] = self.results[m["type"]]
         if m["type"] == "call_service" and self.service_error:
             res.update(success=False, error={"code": "x", "message": self.service_error})
         self.q.put_nowait(json.dumps(res))
@@ -126,4 +129,21 @@ async def test_reconnects_after_drop(monkeypatch):
     sockets[0].q.put_nowait(ConnectionResetError("drop"))
     await asyncio.wait_for(ev.wait(), 2)
     assert count == 2 and c.connected
+    task.cancel()
+
+
+async def test_get_areas_entity_area_beats_device_area():
+    ws = FakeWS(results={
+        "config/area_registry/list": [{"area_id": "k", "name": "Kitchen"}, {"area_id": "b", "name": "Bedroom"}],
+        "config/device_registry/list": [{"id": "d1", "area_id": "k"}, {"id": "d2", "area_id": None}],
+        "config/entity_registry/list": [
+            {"entity_id": "light.a", "device_id": "d1", "area_id": None},  # from device
+            {"entity_id": "light.b", "device_id": "d1", "area_id": "b"},   # own area wins
+            {"entity_id": "light.c", "device_id": "d2", "area_id": None},  # no area
+            {"entity_id": "light.d", "device_id": None, "area_id": None},
+        ],
+    })
+    c, task, _, ev = await start(ws)
+    await asyncio.wait_for(ev.wait(), 2)
+    assert await c.get_areas() == {"light.a": "Kitchen", "light.b": "Bedroom"}
     task.cancel()
