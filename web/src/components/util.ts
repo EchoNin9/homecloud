@@ -150,6 +150,9 @@ export interface Warning {
   text: string;
 }
 
+/** "NAS2 (Drive 1) Temperature" -> "NAS2 Drive 1". */
+const driveLabel = (n: string) => n.replace(/\s*temperature$/i, '').replace(/[()]/g, '').replace(/\s+/g, ' ').trim();
+
 const toC = (v: number, unit: unknown) => (typeof unit === 'string' && unit.includes('F') ? ((v - 32) * 5) / 9 : v);
 
 /** Doors left open longer than DOOR_OPEN_MS, and drives hotter than DRIVE_MAX_C. */
@@ -163,7 +166,7 @@ export function warnings(entities: Entity[], nowMs = Date.now()): Warning[] {
     } else if (domainOf(e.entity_id) === 'sensor' && /drive_\d+_temperature$/.test(e.entity_id)) {
       const v = Number(e.state);
       if (Number.isFinite(v) && toC(v, a.unit_of_measurement) > DRIVE_MAX_C) {
-        out.push({ kind: 'drive', entity: e, text: `${friendlyName(e)} ${e.state}${a.unit_of_measurement ?? ''}` });
+        out.push({ kind: 'drive', entity: e, text: `${driveLabel(friendlyName(e))} · ${e.state}${a.unit_of_measurement ?? ''}` });
       }
     }
   }
