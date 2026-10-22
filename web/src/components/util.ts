@@ -30,17 +30,19 @@ export function areaOf(e: Entity): string {
 }
 
 export type SortKey = 'name' | 'recent';
-export type GroupKey = 'domain' | 'area' | 'none';
+export type GroupKey = 'domain' | 'area' | 'custom' | 'none';
 
 export interface ViewPrefs {
   sort: SortKey;
   group: GroupKey;
   favs: string[];
   hidden: string[];
+  /** Named custom groups: name -> entity ids. An entity can be in several. */
+  groups: Record<string, string[]>;
   showHidden: boolean;
 }
 
-export const DEFAULT_PREFS: ViewPrefs = { sort: 'name', group: 'domain', favs: [], hidden: [], showHidden: false };
+export const DEFAULT_PREFS: ViewPrefs = { sort: 'name', group: 'domain', favs: [], hidden: [], groups: {}, showHidden: false };
 
 /** One rendered section: [key, title, entities]. */
 export type Section = [string, string, Entity[]];
@@ -66,6 +68,18 @@ export function organize(entities: Entity[], filter: string, p: ViewPrefs): Sect
   const rest = shown.filter((e) => !favs.has(e.entity_id));
   if (p.group === 'none') {
     if (rest.length) out.push(['_all', fav.length ? 'Everything else' : 'All', rest]);
+    return out;
+  }
+  if (p.group === 'custom') {
+    const names = Object.keys(p.groups).sort((a, b) => a.localeCompare(b));
+    const grouped = new Set(names.flatMap((n) => p.groups[n]));
+    for (const n of names) {
+      const ids = new Set(p.groups[n]);
+      const list = rest.filter((e) => ids.has(e.entity_id));
+      if (list.length) out.push([`grp:${n}`, n, list]);
+    }
+    const loose = rest.filter((e) => !grouped.has(e.entity_id));
+    if (loose.length) out.push(['grp:', 'Ungrouped', loose]);
     return out;
   }
   const m = new Map<string, Entity[]>();

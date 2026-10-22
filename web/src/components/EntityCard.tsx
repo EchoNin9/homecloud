@@ -20,6 +20,40 @@ interface Props {
   hidden?: boolean;
   onToggleFav?: () => void;
   onToggleHidden?: () => void;
+  /** All custom group names, and a toggle (creates the group if new). */
+  groupNames?: string[];
+  inGroups?: string[];
+  onToggleGroup?: (name: string) => void;
+}
+
+function GroupMenu({ name, all, mine, onToggle }: { name: string; all: string[]; mine: string[]; onToggle: (g: string) => void }) {
+  const [draft, setDraft] = useState('');
+  return (
+    <details className="hc-menu">
+      <summary className="hc-icon-btn hc-text-btn" aria-label={`Groups for ${name}`} title="Groups">
+        Groups{mine.length ? ` (${mine.length})` : ''}
+      </summary>
+      <div className="hc-menu-body">
+        {all.map((g) => (
+          <label key={g} className="hc-check">
+            <input type="checkbox" checked={mine.includes(g)} onChange={() => onToggle(g)} /> {g}
+          </label>
+        ))}
+        <form
+          className="hc-row"
+          onSubmit={(ev) => {
+            ev.preventDefault();
+            const g = draft.trim();
+            if (g && !mine.includes(g)) onToggle(g);
+            setDraft('');
+          }}
+        >
+          <input className="hc-input" placeholder="New group" aria-label="New group name" maxLength={40} value={draft} onChange={(ev) => setDraft(ev.target.value)} />
+          <button type="submit" className="hc-btn" disabled={!draft.trim()}>Add</button>
+        </form>
+      </div>
+    </details>
+  );
 }
 
 /** Debounced value commit: returns [draft, setDraft]; calls commit(draft) 400ms after last change. */
@@ -134,7 +168,7 @@ const BINARY_WORDS: Record<string, [string, string]> = {
   smoke: ['Smoke', 'Clear'],
 };
 
-export function EntityCard({ entity, disabled, busy, onAction, fav, hidden, onToggleFav, onToggleHidden }: Props) {
+export function EntityCard({ entity, disabled, busy, onAction, fav, hidden, onToggleFav, onToggleHidden, groupNames, inGroups, onToggleGroup }: Props) {
   const nameId = useId();
   const domain = domainOf(entity.entity_id);
   const name = friendlyName(entity);
@@ -237,6 +271,7 @@ export function EntityCard({ entity, disabled, busy, onAction, fav, hidden, onTo
         )}
       </div>
       <div className="hc-card-body">{control}</div>
+      {onToggleGroup && <GroupMenu name={name} all={groupNames ?? []} mine={inGroups ?? []} onToggle={onToggleGroup} />}
     </li>
   );
 }
