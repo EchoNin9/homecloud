@@ -16,6 +16,10 @@ interface Props {
   disabled: boolean;
   busy: boolean;
   onAction: (entity: Entity, action: Action) => void;
+  fav?: boolean;
+  hidden?: boolean;
+  onToggleFav?: () => void;
+  onToggleHidden?: () => void;
 }
 
 /** Debounced value commit: returns [draft, setDraft]; calls commit(draft) 400ms after last change. */
@@ -130,7 +134,7 @@ const BINARY_WORDS: Record<string, [string, string]> = {
   smoke: ['Smoke', 'Clear'],
 };
 
-export function EntityCard({ entity, disabled, busy, onAction }: Props) {
+export function EntityCard({ entity, disabled, busy, onAction, fav, hidden, onToggleFav, onToggleHidden }: Props) {
   const nameId = useId();
   const domain = domainOf(entity.entity_id);
   const name = friendlyName(entity);
@@ -213,7 +217,7 @@ export function EntityCard({ entity, disabled, busy, onAction }: Props) {
   }
 
   return (
-    <li className="hc-card" data-domain={domain} data-on={isOn || undefined} aria-busy={busy || undefined}>
+    <li className="hc-card" data-domain={domain} data-on={isOn || undefined} data-hidden={hidden || undefined} aria-busy={busy || undefined}>
       <div className="hc-card-head">
         <div className="hc-card-title">
           <span id={nameId} className="hc-name">{name}</span>
@@ -221,6 +225,16 @@ export function EntityCard({ entity, disabled, busy, onAction }: Props) {
         </div>
         {status && domain !== 'light' && domain !== 'switch' && domain !== 'fan' ? <span className="hc-pill">{status}</span> : null}
         {busy && <span className="hc-spinner" role="img" aria-label="Sending command" />}
+        {onToggleFav && (
+          <button type="button" className="hc-icon-btn" aria-pressed={!!fav} aria-label={`Favourite ${name}`} title={fav ? 'Unfavourite' : 'Favourite'} onClick={onToggleFav}>
+            {fav ? '★' : '☆'}
+          </button>
+        )}
+        {onToggleHidden && (
+          <button type="button" className="hc-icon-btn hc-text-btn" aria-pressed={!!hidden} aria-label={`Hide ${name}`} title={hidden ? 'Unhide' : 'Hide'} onClick={onToggleHidden}>
+            {hidden ? 'Unhide' : 'Hide'}
+          </button>
+        )}
       </div>
       <div className="hc-card-body">{control}</div>
     </li>
