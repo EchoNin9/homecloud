@@ -163,6 +163,24 @@ This leaves the module-managed `config.json` in the bucket untouched.
 
 When all three pass, tick M1 in [mobile.md](mobile.md). Mobile work can then start.
 
+## 9. Auto-deploy from GitHub (optional)
+
+`.github/workflows/deploy.yml` runs on a push to `main` that touches `cloud/`, `web/` or
+`scripts/deploy-web.sh` (not `*.md`, tests or mock data). It runs `tofu apply` on the standalone
+stack, then `scripts/deploy-web.sh`. It refuses any plan that deletes or replaces the IoT
+certificate, the DynamoDB table or the user pool.
+
+1. The account needs GitHub's OIDC provider (`token.actions.githubusercontent.com`) once.
+2. In `bootstrap/terraform.tfvars` set `github_repo = "owner/repo"` and apply the bootstrap
+   stack. It creates role `github-actions-homecloud-deploy`, which only `main` of that repo can
+   assume. IAM, S3 and DynamoDB access is limited to `homecloud-*` names.
+3. Copy the stack's gitignored files to where CI reads them:
+   `aws s3 cp examples/standalone/terraform.tfvars s3://<state-bucket>/homecloud/local-files/examples/standalone/terraform.tfvars`
+   (same for `backend.hcl`). **From now on the S3 copy is what deploys.** Re-upload after you edit
+   the local file.
+4. Repo variables: `AWS_DEPLOY_ROLE_ARN` (bootstrap output `deploy_role_arn`) and
+   `TOFU_STATE_BUCKET`.
+
 ## Troubleshooting
 
 | Symptom | Usual cause | Fix |

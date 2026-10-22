@@ -1,0 +1,80 @@
+name: deploy
+# Push to main that touches AWS infra or the web UI -> tofu apply + publish web.
+# Needs repo variables AWS_DEPLOY_ROLE_ARN (bootstrap output deploy_role_arn) and
+# TOFU_STATE_BUCKET. The stack's gitignored files (terraform.tfvars, backend.hcl) are
+# read from s3://$TOFU_STATE_BUCKET/homecloud/local-files/ (see docs/first-deploy.md).
+on:
+  push:
+    branches: [main]
+    paths:
+      - "cloud/**"
+      - "web/**"
+      - "scripts/deploy-web.sh"
+      - ".github/workflows/deploy.yml"
+      - "!**/*.md"
+      - "!cloud/tests/**"
+      - "!web/mock/**"
+      - "!web/**/*.test.ts"
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  STACK: cloud/terraform/examples/standalone
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: 1.10.6
+          tofu_wrapper: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Fetch gitignored stack files
+        run: |
+          src="s3://${{ vars.TOFU_STATE_BUCKET }}/homecloud/local-files/examples/standalone"
+          aws s3 cp "$src/terraform.tfvars" "$STACK/terraform.tfvars" --only-show-errors
+          aws s3 cp "$src/backend.hcl" "$STACK/backend.hcl" --only-show-errors
+
+      - name: tofu plan
+        working-directory: ${{ env.STACK }}
+        run: |
+          tofu init -input=false -backend-config=backend.hcl
+          tofu plan -input=false -no-color -out=tfplan
+
+      - name: Refuse plans that delete stateful resources
+        working-directory: ${{ env.STACK }}
+        run: |
+          # Replacing the IoT cert disconnects the NAS; the table and user pool hold data.
+          bad=$(tofu show -json tfplan | jq -r '.resource_changes[]?
+            | select(.type == "aws_iot_certificate" or .type == "aws_dynamodb_table" or .type == "aws_cognito_user_pool")
+            | select(.change.actions | index("delete")) | .address')
+          if [ -n "$bad" ]; then
+            echo "::error::Plan deletes or replaces: $bad. Apply by hand after review."
+            exit 1
+          fi
+
+      - name: tofu apply
+        working-directory: ${{ env.STACK }}
+        run: tofu apply -input=false -no-color tfplan
+
+      - name: Publish web
+        run: ./scripts/deploy-web.sh
