@@ -72,9 +72,14 @@ describe('warnings', () => {
       temp('sensor.nas_drive_2_temperature', '50'),
       temp('sensor.nas_drive_3_temperature', '130', '°F'),
       temp('sensor.nas_temperature', '70'),
+      { entity_id: 'sensor.docker_hc_up', state: 'running', last_changed: '', attributes: { health: 'healthy' } },
+      { entity_id: 'sensor.docker_hc_sick', state: 'running', last_changed: '', attributes: { health: 'unhealthy' } },
+      { entity_id: 'sensor.docker_hc_dead', state: 'exited', last_changed: '', attributes: {} },
     ], now);
     expect(w.map((x) => [x.kind, x.entity.entity_id])).toEqual([
       ['door', 'binary_sensor.old'],
+      ['service', 'sensor.docker_hc_dead'],
+      ['service', 'sensor.docker_hc_sick'],
       ['drive', 'sensor.nas_drive_1_temperature'],
       ['drive', 'sensor.nas_drive_3_temperature'],
     ]);

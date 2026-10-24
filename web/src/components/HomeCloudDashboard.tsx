@@ -462,7 +462,7 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
         <section id={sectionId('_warn')} className="hc-warnings" aria-label="Warnings">
           {alerts.map((w) => (
             <button key={w.entity.entity_id} type="button" className="hc-warn" data-kind={w.kind} onClick={() => goToEntity(w.entity.entity_id)}>
-              <span className="hc-warn-kind">{w.kind === 'door' ? 'Door open' : 'Drive hot'}</span>
+              <span className="hc-warn-kind">{{ door: 'Door open', service: 'Service down', drive: 'Drive hot' }[w.kind]}</span>
               <span className="hc-warn-text">{w.text}</span>
             </button>
           ))}

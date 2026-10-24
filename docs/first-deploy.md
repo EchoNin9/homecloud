@@ -183,6 +183,14 @@ certificate, the DynamoDB table or the user pool.
    the local file.
 4. Repo variables: `AWS_DEPLOY_ROLE_ARN` (bootstrap output `deploy_role_arn`) and
    `TOFU_STATE_BUCKET`.
+5. Re-apply the bootstrap stack whenever its deploy policy changes. The deploy role can only
+   create what the policy lists, so apply bootstrap **before** merging the module change that
+   needs it. Example: `events:*` for the daily history rollup schedule.
+
+**History:** the module keeps history for entities matching `history_entities` (globs, with
+defaults for drive temps, doors, lights, `sun.sun` and NAS containers). Set it to `[]` to turn
+history off. A daily `homecloud-rollup` Lambda runs at 00:15 UTC. Smoke test after a day:
+`aws lambda invoke --function-name homecloud-rollup /dev/stdout` returns `"rollups": N` with N > 0.
 
 ## Troubleshooting
 

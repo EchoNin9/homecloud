@@ -119,14 +119,43 @@ Adding it is your call; consider excluding specific locks by glob.
 
 ## 7. Backups
 
-- `scripts/backup.sh` tars `DATA_ROOT` (excluding caches/logs) into `DATA_ROOT/backups`, keeps the newest 7,
-  and uploads to S3 if `BACKUP_S3_URI` is set (needs the AWS CLI configured on the NAS). Schedule it in
-  DSM: Control Panel -> **Task Scheduler** -> Create -> Scheduled Task -> User-defined script,
-  e.g. `DATA_ROOT=/volume1/docker/homecloud BACKUP_S3_URI=s3://bucket/homecloud/ /volume1/docker/homecloud/stack/scripts/backup.sh`.
-- The archive contains your IoT private key and HA secrets: keep the bucket private and encrypted.
-- **Hyper Backup** can instead protect the whole `/volume1/docker` shared folder (to another NAS, USB or
-  cloud). For a consistent HA copy, prefer also using HA's built-in backups (Settings -> System -> Backups)
-  which land in `homeassistant/backups`.
+- The `backup` service runs `scripts/backup.sh` every day at `BACKUP_AT` (default 03:30, NAS local
+  time). It tars the configs in `DATA_ROOT` into `DATA_ROOT/backups` (mode 600) and keeps the newest
+  `BACKUP_KEEP` (default 14). Left out: caches, logs, HA's history DB (`home-assistant_v2.db`), HA's own
+  backups, and AdGuard's query log/stats (`adguard/work`).
+- Run one now: `sudo docker compose exec backup bash /backup.sh`.
+- Restore: stop the stack, then `sudo tar -xzf backups/homecloud-<ts>.tar.gz -C /volume1/docker/homecloud`, then start it again.
+- The archive contains your IoT private key and HA token. For off-site copies, add
+  `/volume1/docker/homecloud/backups` to a **Hyper Backup** task (or run `backup.sh` from DSM Task
+  Scheduler with `BACKUP_S3_URI` and the AWS CLI on the host). Keep the destination private and encrypted.
+- HA's built-in backups (Settings -> System -> Backups) still give a consistent copy that includes history.
+
+## 8. AdGuard Home (optional)
+
+DSM's DNS Server owns port 53 on the NAS's own addresses, so AdGuard gets its own LAN IP through a macvlan
+network on a **spare NIC**. If it used the NIC that holds the NAS's main IP, it couldn't reach DSM DNS.
+
+1. In `.env`, set `ADGUARD_IP` (a free IP outside DHCP), `ADGUARD_PARENT` (the spare NIC, e.g. `eth3`),
+   `LAN_SUBNET` and `LAN_GATEWAY`.
+2. `sudo mkdir -p /volume1/docker/homecloud/adguard/{conf,work}`, then
+   `sudo docker compose --profile adguard up -d adguard`.
+3. Open `http://<ADGUARD_IP>:3000` and run the wizard. Keep the web UI on 3000 and DNS on 53, all interfaces.
+4. Settings -> DNS settings:
+   - Upstream DNS servers: `https://dns.quad9.net/dns-query` plus `[/<your local zone>/]<NAS IP>`
+     (your local zone, still served by DSM DNS).
+   - Private reverse DNS servers: `<NAS IP>`.
+   - Test with `nslookup example.com <ADGUARD_IP>`.
+5. Point DHCP's DNS option (on the router) at `<ADGUARD_IP>`. Keep DSM DNS as the secondary if you
+   want DNS to keep working when AdGuard is down.
+
+The NAS itself can't reach `<ADGUARD_IP>` (a macvlan limit). It keeps using DSM DNS.
+
+## 9. Container monitoring
+
+The `monitor` service sets `sensor.docker_<container>` in HA every 60 s, and the bridge sends these to the
+cloud like any other sensor. The web dashboard shows them as sensor tiles, plus a red **Service down**
+chip when one isn't `running` or is `unhealthy`. It needs `sensor` in `BRIDGE_ALLOWED_DOMAINS`
+(it is by default).
 
 ## Troubleshooting
 
