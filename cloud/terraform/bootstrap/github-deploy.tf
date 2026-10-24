@@ -56,7 +56,7 @@ data "aws_iam_policy_document" "deploy_trust" {
 }
 
 # ponytail: services without useful resource-level scoping (API GW, IoT, Cognito, CloudFront,
-# Lambda, Logs, ACM) get "*"; IAM, S3 and DynamoDB are pinned to the prefix.
+# Lambda, Logs, ACM, EventBridge) get "*"; IAM, S3 and DynamoDB are pinned to the prefix.
 data "aws_iam_policy_document" "deploy" {
   count = local.deploy
   statement {
@@ -81,7 +81,7 @@ data "aws_iam_policy_document" "deploy" {
   }
   statement {
     sid       = "Services"
-    actions   = ["apigateway:*", "iot:*", "cognito-idp:*", "cloudfront:*", "lambda:*", "logs:*", "acm:*", "iam:Get*", "iam:List*"]
+    actions   = ["apigateway:*", "iot:*", "cognito-idp:*", "cloudfront:*", "lambda:*", "logs:*", "acm:*", "events:*", "iam:Get*", "iam:List*"]
     resources = ["*"]
   }
 }

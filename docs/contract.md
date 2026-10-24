@@ -106,6 +106,34 @@ optionally followed by `: <message>`.
 Floats must be converted with `Decimal(str(v))` at the single write path, because boto3
 rejects Python floats.
 
+### History (tracked entities only)
+
+An entity is tracked when its id matches one of the module's `history_entities` globs.
+
+| PK | SK | Attributes |
+|---|---|---|
+| `HIST#{homeId}#{entity_id}` | `R#{last_changed}` | `state`, `ttl` (35 days). Written by ingest for each accepted state |
+| `HIST#{homeId}#{entity_id}` | `D#{YYYY-MM-DD}` | Numeric: `min`, `max`, `avg` (time-weighted). Otherwise: `dur` (map of state → seconds). Both have `n` (changes that day) and `ttl` (15 months) |
+
+- `R#` items are keyed by `last_changed`, so attribute-only updates rewrite the same item.
+- A daily rollup job writes `D#` items for each of the last 3 **UTC** days. A missed run
+  heals on the next one.
+- A day's rollup opens with the last raw state from before midnight (or the `ENTITY#` item
+  if no raw state is older). History starts when this is first deployed.
+- Backups: the table's PITR (35 days). AWS Backup comes later.
+
+Examples: `sun.sun` `dur.above_horizon` is the daylight length. A light's
+`dur.on` is its on-time. The `R#` keys of `sun.sun` are the sunrise and sunset times.
+Container states (see below) give uptime.
+
+### NAS container sensors
+
+A sidecar on the NAS (`nas/docker-compose.yml` `monitor`) sets `sensor.docker_{name}` in
+Home Assistant every 60 s. The `state` is Docker's `State` (`running`, `exited`,
+`restarting`, …). Attributes: `image`, `started_at` (ISO), `health` (`healthy`,
+`unhealthy`, `starting` or `null`), `icon`.
+These are ordinary entities to the bridge and the cloud.
+
 ## HTTP API (`/v1`, Cognito JWT on every route except `/v1/health`)
 
 | Method + path | Response |
@@ -142,4 +170,6 @@ work is described in [mobile.md](mobile.md).
 - MQTT `homecloud/{homeId}/event` (bridge → cloud): user-facing events that trigger push notifications.
 - `POST /v1/devices` and `DELETE /v1/devices/{deviceId}`: register and unregister push tokens.
 - `GET /v1/homes/{homeId}/summary`: entities plus home status in one call.
+- `GET /v1/homes/{homeId}/history/{entityId}?from=&to=&res=raw|day`: returns `R#`/`D#` items
+  (additive, so it can ship in `/v1` once the dashboard charts need it).
 - WebSocket route `$connect?homeId=` for live state updates.

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Archive ${DATA_ROOT} (minus caches) and optionally upload it to S3.
+# Archive the configs in ${DATA_ROOT} (minus caches, HA's history DB and its own backups, AdGuard logs) and optionally upload it to S3.
 # Usage: DATA_ROOT=/volume1/docker/homecloud [BACKUP_DIR=...] [BACKUP_S3_URI=s3://bucket/prefix/] ./backup.sh
 set -euo pipefail
 
@@ -21,7 +21,11 @@ tar -czf "$archive" \
   --exclude='*/deps' \
   --exclude='*/tts' \
   --exclude='*/log/*' \
+  --exclude='./homeassistant/home-assistant_v2.db*' \
+  --exclude='./homeassistant/backups' \
+  --exclude='./adguard/work' \
   -C "$DATA_ROOT" .
+chmod 600 "$archive"   # Synology ACLs ignore the umask on shared folders
 echo "wrote $archive"
 
 if [ -n "${BACKUP_S3_URI:-}" ]; then

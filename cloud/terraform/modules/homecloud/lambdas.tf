@@ -91,9 +91,10 @@ resource "aws_lambda_function" "ingest" {
 
   environment {
     variables = {
-      TABLE_NAME   = aws_dynamodb_table.state.name
-      HOME_IDS     = join(",", var.home_ids)
-      THING_PREFIX = var.name_prefix
+      TABLE_NAME       = aws_dynamodb_table.state.name
+      HOME_IDS         = join(",", var.home_ids)
+      THING_PREFIX     = var.name_prefix
+      HISTORY_ENTITIES = join(",", var.history_entities)
     }
   }
 
