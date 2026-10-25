@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Entity, HomeCloudClient } from '../client';
 import { Brightness, Climate, Switch, hasBrightness, primaryAction, type OnAction } from './EntityCard';
 import { HistoryPanel } from './HistoryPanel';
+import { SunMoon } from './SunMoon';
 import { Icon, entityIcon, iconTone } from './icons';
 import { areaOf, domainOf, formatLastSeen, friendlyName, stateText, updateInfo } from './util';
 
@@ -76,6 +77,8 @@ export function MoreInfo(p: Props) {
     );
   } else if (d === 'update') {
     control = <UpdateBody entity={e} />;
+  } else if (e.entity_id === 'sun.sun') {
+    control = <SunMoon sun={e} />;
   }
 
   return (

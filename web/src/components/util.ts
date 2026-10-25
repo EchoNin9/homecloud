@@ -1,4 +1,5 @@
 import type { Entity } from '../client';
+import { moonPhase, phaseName } from './astro';
 
 export const domainOf = (entityId: string): string => entityId.split('.')[0] ?? '';
 
@@ -325,6 +326,8 @@ export function stateText(e: Entity, nowMs = Date.now()): string {
     }
     case 'sensor':
       return `${prettyState(s)}${unit}`;
+    case 'sun':
+      return `${prettyState(s)} · ${phaseName(moonPhase(nowMs).phase).toLowerCase()}`;
     default:
       return prettyState(s);
   }
