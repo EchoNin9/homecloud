@@ -150,6 +150,12 @@
 }
 .hc-warn[data-kind='door'], .hc-warn[data-kind='service'] { background: var(--hc-door); }
 .hc-warn[data-kind='drive'] { background: var(--hc-drive); }
+.hc-warn[data-kind='update'] { background: #b45309; }
+.hc-dialog { color: var(--hc-text); background: var(--hc-surface); border: 1px solid var(--hc-border); border-radius: var(--hc-radius); padding: 20px; width: min(520px, calc(100vw - 32px)); box-sizing: border-box; }
+.hc-dialog::backdrop { background: rgb(0 0 0 / 45%); }
+.hc-dialog h2 { margin: 0 0 8px; font-size: 1.15rem; }
+.hc-cmd { background: var(--hc-surface-2); border-radius: 8px; padding: 10px; overflow-x: auto; font-size: 0.85rem; white-space: pre; }
+.hc-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 .hc-warn:hover { filter: brightness(1.1); }
 .hc-warn-kind { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.9; }
 .hc-warn-text { font-size: 0.9rem; line-height: 1.2; overflow-wrap: anywhere; }
@@ -257,3 +263,4 @@
   .hc-icon-btn, .hc-menu > summary { min-width: 44px; min-height: 44px; }
 }
 @media (max-width: 600px) { .hc-name { font-size: 0.9rem; } }
+.hc-muted { color: var(--hc-muted); }

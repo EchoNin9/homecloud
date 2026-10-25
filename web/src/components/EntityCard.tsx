@@ -180,7 +180,7 @@ const BINARY_WORDS: Record<string, [string, string]> = {
 };
 
 /** Read-only entities get a compact one-row tile. */
-const READ_ONLY = new Set(['sensor', 'binary_sensor', 'sun', 'weather']);
+const READ_ONLY = new Set(['sensor', 'binary_sensor', 'sun', 'weather', 'update']);
 
 export function EntityCard({ entity, disabled, busy, onAction, fav, hidden, onToggleFav, onToggleHidden, groupNames, inGroups, onToggleGroup, selecting, selected, onSelect }: Props) {
   const nameId = useId();
@@ -258,6 +258,11 @@ export function EntityCard({ entity, disabled, busy, onAction, fav, hidden, onTo
     case 'binary_sensor': {
       const words = BINARY_WORDS[String(entity.attributes.device_class)] ?? ['On', 'Off'];
       control = <p className="hc-reading">{entity.state === 'on' ? words[0] : entity.state === 'off' ? words[1] : prettyState(entity.state)}</p>;
+      break;
+    }
+    case 'update': {
+      const to = entity.attributes.latest_version;
+      control = <p className="hc-reading">{entity.state === 'on' ? `→ ${String(to).replace(/^sha256:.*/, 'new image')}` : 'Up to date'}</p>;
       break;
     }
     default:

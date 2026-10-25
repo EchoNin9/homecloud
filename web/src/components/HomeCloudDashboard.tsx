@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { Entity, Home, HomeCloudClient } from '../client';
 import { EntityCard, type Action } from './EntityCard';
 import { usePoll } from './usePoll';
-import { DEFAULT_PREFS, MAX_QUERIES, domainOf, errorMessage, formatLastSeen, organize, saveQuery, sunTimes, warnings, type ViewPrefs } from './util';
+import { DEFAULT_PREFS, MAX_QUERIES, domainOf, errorMessage, formatLastSeen, organize, saveQuery, sunTimes, updateInfo, warnings, type ViewPrefs } from './util';
 import './dashboard.css';
 
 export interface HomeCloudDashboardProps {
@@ -197,6 +197,7 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
     return organize(merged, filter, prefs);
   }, [entities, patches, filter, prefs]);
   const alerts = useMemo(() => warnings(entities ?? []), [entities]);
+  const [updateFor, setUpdateFor] = useState<Entity | null>(null);
   const sun = useMemo(() => sunTimes(entities ?? []), [entities]);
   const shownIds = groups.flatMap(([, , list]) => list.map((e) => e.entity_id));
   const stopSelecting = () => {
@@ -461,8 +462,8 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
       {alerts.length > 0 && (
         <section id={sectionId('_warn')} className="hc-warnings" aria-label="Warnings">
           {alerts.map((w) => (
-            <button key={w.entity.entity_id} type="button" className="hc-warn" data-kind={w.kind} onClick={() => goToEntity(w.entity.entity_id)}>
-              <span className="hc-warn-kind">{{ door: 'Door open', service: 'Service down', drive: 'Drive hot' }[w.kind]}</span>
+            <button key={w.entity.entity_id} type="button" className="hc-warn" data-kind={w.kind} onClick={() => (w.kind === 'update' ? setUpdateFor(w.entity) : goToEntity(w.entity.entity_id))}>
+              <span className="hc-warn-kind">{{ door: 'Door open', service: 'Service down', drive: 'Drive hot', update: 'Update' }[w.kind]}</span>
               <span className="hc-warn-text">{w.text}</span>
             </button>
           ))}
@@ -573,6 +574,8 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
         </div>
       )}
 
+      {updateFor && <UpdateDialog entity={updateFor} onClose={() => setUpdateFor(null)} />}
+
       <div className="hc-toasts" role="region" aria-label="Notifications" aria-live="assertive">
         {toasts.map((t) => (
           <div key={t.id} className="hc-toast" role="alert">
@@ -582,5 +585,40 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
         ))}
       </div>
     </section>
+  );
+}
+
+/** How-to for one available image update. Notify only: the NAS is upgraded by hand, never from the cloud. */
+function UpdateDialog({ entity, onClose }: { entity: Entity; onClose: () => void }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const [copied, setCopied] = useState(false);
+  const u = updateInfo(entity);
+  const cmd = u.steps.join('\n');
+  useEffect(() => ref.current?.showModal(), []);
+  const copy = () => navigator.clipboard?.writeText(cmd).then(() => setCopied(true), () => setCopied(false));
+  return (
+    <dialog ref={ref} className="hc-dialog" onClose={onClose} aria-labelledby="hc-upd-title">
+      <h2 id="hc-upd-title">Update {u.service}</h2>
+      <p>
+        {u.container && u.digest ? <>A new <code>:{u.from}</code> image is published.</> : <><code>{u.from}</code> → <code>{u.to}</code></>}
+        {u.url && <> · <a href={u.url} target="_blank" rel="noreferrer">Release notes</a></>}
+      </p>
+      {u.container ? (
+        <>
+          <p className="hc-muted">
+            Back up first.{' '}
+            {!u.digest && <>In <code>docker-compose.yml</code> (NAS and repo), change the {u.service} image tag to <code>:{u.to}</code>. Then </>}
+            {u.digest ? 'Run' : 'run'} in the NAS stack folder:
+          </p>
+          <pre className="hc-cmd"><code>{cmd}</code></pre>
+        </>
+      ) : (
+        <p className="hc-muted">Install it from the device's own app or admin page (for example DSM → Update &amp; Restore).</p>
+      )}
+      <form method="dialog" className="hc-dialog-actions">
+        {u.container && <button type="button" className="hc-btn" onClick={copy}>{copied ? 'Copied' : 'Copy'}</button>}
+        <button className="hc-btn">Close</button>
+      </form>
+    </dialog>
   );
 }

@@ -14,6 +14,6 @@ if [ ! -f "$R/mosquitto/passwd" ]; then
   chown 1883:1883 "$R/mosquitto/passwd" && chmod 600 "$R/mosquitto/passwd"
   echo "MQTT user: homecloud  password: $PW   <-- save this, needed for the HA MQTT integration"
 fi
-chown -R 1883:1883 "$R/mosquitto/data"
+chown -R 1883:1883 "$R/mosquitto/data" && chmod 755 "$R/mosquitto/data"   # Synology ACLs can leave it read-only
 
 cd "$STACK" && docker compose up -d homeassistant mosquitto && docker compose ps
