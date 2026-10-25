@@ -131,7 +131,7 @@ Container states (see below) give uptime.
 ### NAS container sensors
 
 A sidecar on the NAS (`nas/docker-compose.yml` `monitor`) sets `sensor.docker_{name}` in
-Home Assistant every 60 s. The `state` is Docker's `State` (`running`, `exited`,
+Home Assistant every 60 s, for compose containers only (any project). The `state` is Docker's `State` (`running`, `exited`,
 `restarting`, …). Attributes: `image`, `started_at` (ISO), `health` (`healthy`,
 `unhealthy`, `starting` or `null`), `icon`.
 

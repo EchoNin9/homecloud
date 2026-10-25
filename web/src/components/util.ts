@@ -17,6 +17,7 @@ const TITLES: Record<string, string> = {
   scene: 'Scenes',
   sensor: 'Sensors',
   binary_sensor: 'Binary sensors',
+  update: 'Updates',
 };
 
 export function domainTitle(d: string): string {
@@ -263,4 +264,55 @@ export function prettyState(s: string): string {
   if (!s || /^-?\d/.test(s)) return s;
   const t = s.replace(/_/g, ' ');
   return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
+const BINARY_WORDS: Record<string, [string, string]> = {
+  motion: ['Detected', 'Clear'],
+  door: ['Open', 'Closed'],
+  garage_door: ['Open', 'Closed'],
+  window: ['Open', 'Closed'],
+  opening: ['Open', 'Closed'],
+  occupancy: ['Occupied', 'Clear'],
+  moisture: ['Wet', 'Dry'],
+  smoke: ['Smoke', 'Clear'],
+  problem: ['Problem', 'OK'],
+};
+
+const numAttr = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
+
+/** The tile's second line, as HA words it: "On · 49%", "44 °C", "Open", "v0.107.80 available". */
+export function stateText(e: Entity, nowMs = Date.now()): string {
+  const a = e.attributes;
+  const s = e.state;
+  if (s === 'unavailable' || s === 'unknown') return prettyState(s);
+  const unit = typeof a.unit_of_measurement === 'string' && a.unit_of_measurement ? ` ${a.unit_of_measurement}` : '';
+  switch (domainOf(e.entity_id)) {
+    case 'light': {
+      const b = numAttr(a.brightness);
+      return s === 'on' && b !== undefined ? `On · ${Math.round((b / 255) * 100)}%` : prettyState(s);
+    }
+    case 'climate': {
+      const cur = numAttr(a.current_temperature);
+      const u = String(a.temperature_unit ?? a.unit_of_measurement ?? '°');
+      const what = prettyState(typeof a.hvac_action === 'string' ? a.hvac_action : s);
+      return cur === undefined ? what : `${what} · ${cur} ${u}`;
+    }
+    case 'scene': {
+      const t = Date.parse(s);
+      return Number.isFinite(t) ? `Activated ${formatLastSeen(t, nowMs)}` : 'Scene';
+    }
+    case 'binary_sensor': {
+      const w = BINARY_WORDS[String(a.device_class)] ?? ['On', 'Off'];
+      return s === 'on' ? w[0] : s === 'off' ? w[1] : prettyState(s);
+    }
+    case 'update': {
+      if (s !== 'on') return 'Up to date';
+      const to = String(a.latest_version ?? '');
+      return to.startsWith('sha256:') || !to ? 'New image available' : `${to} available`;
+    }
+    case 'sensor':
+      return `${prettyState(s)}${unit}`;
+    default:
+      return prettyState(s);
+  }
 }

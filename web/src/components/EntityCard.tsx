@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { Entity } from '../client';
-import { domainOf, friendlyName, prettyState } from './util';
+import { Icon, entityIcon, iconTone } from './icons';
+import { domainOf, friendlyName, stateText } from './util';
 
 export interface Action {
   service: string;
@@ -11,65 +12,32 @@ export interface Action {
   label: string;
 }
 
-interface Props {
-  entity: Entity;
-  disabled: boolean;
-  busy: boolean;
-  onAction: (entity: Entity, action: Action) => void;
-  fav?: boolean;
-  hidden?: boolean;
-  onToggleFav?: () => void;
-  onToggleHidden?: () => void;
-  /** All custom group names, and a toggle (creates the group if new). */
-  groupNames?: string[];
-  inGroups?: string[];
-  onToggleGroup?: (name: string) => void;
-  selecting?: boolean;
-  selected?: boolean;
-  onSelect?: () => void;
-  /** Set when the entity has history (history_entities). */
-  onHistory?: () => void;
+export type OnAction = (entity: Entity, action: Action) => void;
+
+const num = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
+
+/** What tapping the tile's icon does (HA's tile "icon tap action"), or null when it only shows state. */
+export function primaryAction(e: Entity): Action | null {
+  const d = domainOf(e.entity_id);
+  const on = e.state === 'on';
+  if (d === 'light' || d === 'switch' || d === 'fan') {
+    return { service: on ? 'turn_off' : 'turn_on', patch: { state: on ? 'off' : 'on' }, label: on ? 'turn off' : 'turn on' };
+  }
+  if (d === 'scene') return { service: 'turn_on', label: 'activate' };
+  if (d === 'cover') {
+    return e.state === 'closed'
+      ? { service: 'open_cover', patch: { state: 'open' }, label: 'open' }
+      : { service: 'close_cover', patch: { state: 'closed' }, label: 'close' };
+  }
+  return null;
 }
 
-function GroupMenu({ name, all, mine, onToggle }: { name: string; all: string[]; mine: string[]; onToggle: (g: string) => void }) {
-  const [draft, setDraft] = useState('');
-  const ref = useRef<HTMLDetailsElement>(null);
-  useEffect(() => {
-    const close = (e: PointerEvent) => {
-      if (ref.current?.open && !ref.current.contains(e.target as Node)) ref.current.open = false;
-    };
-    document.addEventListener('pointerdown', close);
-    return () => document.removeEventListener('pointerdown', close);
-  }, []);
-  return (
-    <details className="hc-menu" ref={ref}>
-      <summary className="hc-icon-btn hc-text-btn" aria-label={`Groups for ${name}`} title="Groups">
-        Groups{mine.length ? ` (${mine.length})` : ''}
-      </summary>
-      <div className="hc-menu-body">
-        {all.map((g) => (
-          <label key={g} className="hc-check">
-            <input type="checkbox" checked={mine.includes(g)} onChange={() => onToggle(g)} /> {g}
-          </label>
-        ))}
-        <form
-          className="hc-row"
-          onSubmit={(ev) => {
-            ev.preventDefault();
-            const g = draft.trim();
-            if (g && !mine.includes(g)) onToggle(g);
-            setDraft('');
-          }}
-        >
-          <input className="hc-input" placeholder="New group" aria-label="New group name" maxLength={40} value={draft} onChange={(ev) => setDraft(ev.target.value)} />
-          <button type="submit" className="hc-btn" disabled={!draft.trim()}>Add</button>
-        </form>
-      </div>
-    </details>
-  );
-}
+export const hasBrightness = (e: Entity) => {
+  const modes = e.attributes.supported_color_modes;
+  return domainOf(e.entity_id) === 'light' && (num(e.attributes.brightness) !== undefined || (Array.isArray(modes) && modes.some((m) => m !== 'onoff')));
+};
 
-/** Debounced value commit: returns [draft, setDraft]; calls commit(draft) 400ms after last change. */
+/** Debounced value commit: returns [draft, setDraft]; calls commit(draft) `delay` ms after the last change. */
 function useDraft<T>(commit: (v: T) => void, delay = 400) {
   const [draft, setDraft] = useState<T | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -87,27 +55,16 @@ function useDraft<T>(commit: (v: T) => void, delay = 400) {
   return [draft, set] as const;
 }
 
-const num = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
-
-function Switch({ checked, labelledBy, disabled, onChange }: { checked: boolean; labelledBy: string; disabled: boolean; onChange: (next: boolean) => void }) {
+export function Switch({ checked, label, disabled, onChange }: { checked: boolean; label: string; disabled: boolean; onChange: (next: boolean) => void }) {
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-labelledby={labelledBy}
-      className="hc-switch"
-      disabled={disabled}
-      onClick={() => onChange(!checked)}
-    >
+    <button type="button" role="switch" aria-checked={checked} aria-label={label} className="hc-switch" disabled={disabled} onClick={() => onChange(!checked)}>
       <span className="hc-switch-knob" aria-hidden="true" />
     </button>
   );
 }
 
-function Brightness({ entity, name, disabled, onAction }: { entity: Entity; name: string; disabled: boolean; onAction: Props['onAction'] }) {
-  const raw = num(entity.attributes.brightness) ?? 0;
-  const pct = Math.round((raw / 255) * 100);
+export function Brightness({ entity, disabled, onAction }: { entity: Entity; disabled: boolean; onAction: OnAction }) {
+  const pct = Math.round(((num(entity.attributes.brightness) ?? 0) / 255) * 100);
   const [draft, setDraft] = useDraft<number>((v) =>
     onAction(entity, {
       service: 'turn_on',
@@ -116,29 +73,26 @@ function Brightness({ entity, name, disabled, onAction }: { entity: Entity; name
       label: 'set brightness',
     }),
   );
-  const shown = draft ?? pct;
+  const shown = draft ?? (entity.state === 'on' ? pct : 0);
   return (
-    <div className="hc-row">
-      <input
-        type="range"
-        className="hc-range"
-        min={1}
-        max={100}
-        value={Math.max(1, shown)}
-        disabled={disabled}
-        aria-label={`${name} brightness`}
-        aria-valuetext={`${shown}%`}
-        onChange={(ev) => setDraft(Number(ev.target.value))}
-      />
-      <span className="hc-value" aria-hidden="true">{shown}%</span>
-    </div>
+    <input
+      type="range"
+      className="hc-range"
+      style={{ '--hc-fill': `${shown}%` } as React.CSSProperties}
+      min={1}
+      max={100}
+      value={Math.max(1, shown)}
+      disabled={disabled}
+      aria-label={`${friendlyName(entity)} brightness`}
+      aria-valuetext={`${shown}%`}
+      onChange={(ev) => setDraft(Number(ev.target.value))}
+    />
   );
 }
 
-function Climate({ entity, name, disabled, onAction }: { entity: Entity; name: string; disabled: boolean; onAction: Props['onAction'] }) {
+export function Climate({ entity, disabled, onAction }: { entity: Entity; disabled: boolean; onAction: OnAction }) {
   const a = entity.attributes;
   const target = num(a.temperature);
-  const current = num(a.current_temperature);
   const unit = String(a.temperature_unit ?? a.unit_of_measurement ?? '°');
   const step = num(a.target_temp_step) ?? (unit.includes('F') ? 1 : 0.5);
   const min = num(a.min_temp);
@@ -156,158 +110,78 @@ function Climate({ entity, name, disabled, onAction }: { entity: Entity; name: s
     setDraft(next);
   };
   return (
-    <div>
-      <div className="hc-stepper" role="group" aria-label={`${name} target temperature`}>
-        <button type="button" className="hc-btn hc-btn-icon" aria-label="Decrease target temperature" disabled={disabled || shown === undefined} onClick={() => bump(-1)}>−</button>
-        <output className="hc-temp" aria-live="polite">{shown === undefined ? '—' : `${shown}${unit}`}</output>
-        <button type="button" className="hc-btn hc-btn-icon" aria-label="Increase target temperature" disabled={disabled || shown === undefined} onClick={() => bump(1)}>+</button>
-      </div>
-      <p className="hc-meta">
-        {current !== undefined && <>Now {current}{unit}</>}
-        {typeof a.hvac_action === 'string' && <> · {a.hvac_action}</>}
-        {current === undefined && typeof a.hvac_action !== 'string' && <>Mode: {entity.state}</>}
-      </p>
+    <div className="hc-stepper" role="group" aria-label={`${friendlyName(entity)} target temperature`}>
+      <button type="button" className="hc-btn hc-step" aria-label="Decrease target temperature" disabled={disabled || shown === undefined} onClick={() => bump(-1)}>−</button>
+      <output className="hc-temp" aria-live="polite">{shown === undefined ? '—' : `${shown} ${unit}`}</output>
+      <button type="button" className="hc-btn hc-step" aria-label="Increase target temperature" disabled={disabled || shown === undefined} onClick={() => bump(1)}>+</button>
     </div>
   );
 }
 
-const BINARY_WORDS: Record<string, [string, string]> = {
-  motion: ['Detected', 'Clear'],
-  door: ['Open', 'Closed'],
-  window: ['Open', 'Closed'],
-  opening: ['Open', 'Closed'],
-  occupancy: ['Occupied', 'Clear'],
-  moisture: ['Wet', 'Dry'],
-  smoke: ['Smoke', 'Clear'],
-};
+interface TileProps {
+  entity: Entity;
+  disabled: boolean;
+  busy: boolean;
+  onAction: OnAction;
+  /** Opens the more-info dialog. */
+  onOpen: () => void;
+  hidden?: boolean;
+  selecting?: boolean;
+  selected?: boolean;
+  onSelect?: () => void;
+}
 
-/** Read-only entities get a compact one-row tile. */
-const READ_ONLY = new Set(['sensor', 'binary_sensor', 'sun', 'weather', 'update']);
-
-export function EntityCard({ entity, disabled, busy, onAction, fav, hidden, onToggleFav, onToggleHidden, groupNames, inGroups, onToggleGroup, selecting, selected, onSelect, onHistory }: Props) {
+/**
+ * Home Assistant style tile: icon (tap = toggle/activate), name and state (tap = more info),
+ * plus a feature row for lights with brightness and for climate.
+ */
+export function EntityCard({ entity, disabled, busy, onAction, onOpen, hidden, selecting, selected, onSelect }: TileProps) {
   const nameId = useId();
-  const domain = domainOf(entity.entity_id);
   const name = friendlyName(entity);
-  const off = disabled || undefined;
-  const isOn = entity.state === 'on';
-
-  let control: JSX.Element;
-  let status: string | null = null;
-
-  switch (domain) {
-    case 'light':
-    case 'switch':
-    case 'fan': {
-      status = entity.state;
-      const modes = entity.attributes.supported_color_modes;
-      const hasBrightness =
-        domain === 'light' &&
-        (num(entity.attributes.brightness) !== undefined ||
-          (Array.isArray(modes) && modes.some((m) => m !== 'onoff')));
-      control = (
-        <>
-          <Switch
-            checked={isOn}
-            labelledBy={nameId}
-            disabled={!!off}
-            onChange={(next) =>
-              onAction(entity, {
-                service: next ? 'turn_on' : 'turn_off',
-                patch: { state: next ? 'on' : 'off' },
-                label: next ? 'turn on' : 'turn off',
-              })
-            }
-          />
-          {hasBrightness && <Brightness entity={entity} name={name} disabled={!!off} onAction={onAction} />}
-        </>
-      );
-      break;
-    }
-    case 'climate':
-      status = entity.state;
-      control = <Climate entity={entity} name={name} disabled={!!off} onAction={onAction} />;
-      break;
-    case 'cover':
-      status = entity.state;
-      control = (
-        <div className="hc-actions">
-          <button type="button" className="hc-btn" disabled={!!off || entity.state === 'open'} onClick={() => onAction(entity, { service: 'open_cover', patch: { state: 'open' }, label: 'open' })}>
-            Open<span className="hc-sr"> {name}</span>
-          </button>
-          <button type="button" className="hc-btn" disabled={!!off || entity.state === 'closed'} onClick={() => onAction(entity, { service: 'close_cover', patch: { state: 'closed' }, label: 'close' })}>
-            Close<span className="hc-sr"> {name}</span>
-          </button>
-        </div>
-      );
-      break;
-    case 'scene':
-      control = (
-        <button type="button" className="hc-btn hc-btn-outline" disabled={!!off || busy} onClick={() => onAction(entity, { service: 'turn_on', label: 'activate' })}>
-          Activate<span className="hc-sr"> {name}</span>
-        </button>
-      );
-      break;
-    case 'sensor': {
-      const unit = entity.attributes.unit_of_measurement;
-      control = (
-        <p className="hc-reading">
-          {prettyState(entity.state)}
-          {typeof unit === 'string' && unit && <span className="hc-unit"> {unit}</span>}
-        </p>
-      );
-      break;
-    }
-    case 'binary_sensor': {
-      const words = BINARY_WORDS[String(entity.attributes.device_class)] ?? ['On', 'Off'];
-      control = <p className="hc-reading">{entity.state === 'on' ? words[0] : entity.state === 'off' ? words[1] : prettyState(entity.state)}</p>;
-      break;
-    }
-    case 'update': {
-      const to = entity.attributes.latest_version;
-      control = <p className="hc-reading">{entity.state === 'on' ? `→ ${String(to).replace(/^sha256:.*/, 'new image')}` : 'Up to date'}</p>;
-      break;
-    }
-    default:
-      control = <p className="hc-reading">{prettyState(entity.state)}</p>;
-  }
-
+  const act = selecting ? null : primaryAction(entity);
+  const tone = iconTone(entity);
+  const d = domainOf(entity.entity_id);
+  const icon = (
+    <span className="hc-tile-icon" data-tone={tone || undefined} data-busy={busy || undefined}>
+      <Icon path={entityIcon(entity)} />
+    </span>
+  );
   return (
     <li
       id={`hc-e-${entity.entity_id}`}
-      className="hc-card"
-      data-compact={READ_ONLY.has(domain) || undefined}
-      data-domain={domain} data-on={isOn || undefined} data-hidden={hidden || undefined} data-selected={selected || undefined} aria-busy={busy || undefined}>
-      <div className="hc-card-head">
-        {selecting && (
-          <input type="checkbox" className="hc-pick" checked={!!selected} onChange={onSelect} aria-label={`Select ${name}`} />
-        )}
-        <div className="hc-card-title">
-          <span id={nameId} className="hc-name" title={entity.entity_id}>{name}</span>
-          {selecting && <span className="hc-id">{entity.entity_id}</span>}
-        </div>
-        {status && domain !== 'light' && domain !== 'switch' && domain !== 'fan' ? <span className="hc-pill">{prettyState(status)}</span> : null}
-        {busy && <span className="hc-spinner" role="img" aria-label="Sending command" />}
-        {onHistory && (
-          <button type="button" className="hc-icon-btn" aria-label={`History of ${name}`} title="History" onClick={onHistory}>
-            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M2 13l4-5 3 3 5-7" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      className="hc-tile"
+      data-tone={tone || undefined}
+      data-hidden={hidden || undefined}
+      data-selected={selected || undefined}
+      aria-busy={busy || undefined}
+    >
+      <div className="hc-tile-main">
+        {act ? (
+          <button
+            type="button"
+            className="hc-tile-act"
+            {...(act.patch ? { role: 'switch', 'aria-checked': entity.state === 'on' || (d === 'cover' && entity.state !== 'closed') } : {})}
+            aria-label={act.patch ? `${name}` : `Activate ${name}`}
+            aria-describedby={nameId}
+            disabled={disabled || (busy && d === 'scene')}
+            onClick={() => onAction(entity, act)}
+          >
+            {icon}
           </button>
+        ) : (
+          icon
         )}
-        {onToggleFav && (
-          <button type="button" className="hc-icon-btn" aria-pressed={!!fav} aria-label={`Favourite ${name}`} title={fav ? 'Unfavourite' : 'Favourite'} onClick={onToggleFav}>
-            {fav ? '★' : '☆'}
-          </button>
-        )}
+        <button type="button" className="hc-tile-info" aria-haspopup={selecting ? undefined : 'dialog'} aria-pressed={selecting ? !!selected : undefined} onClick={selecting ? onSelect : onOpen}>
+          <span className="hc-tile-name" title={name}>{name}</span>
+          <span className="hc-tile-state" id={nameId}>{stateText(entity)}</span>
+        </button>
+        {selecting && <span className="hc-tile-check" aria-hidden="true">{selected ? '✓' : ''}</span>}
       </div>
-      <div className="hc-card-body">{control}</div>
-      {selecting && (onToggleGroup || onToggleHidden) && (
-        <div className="hc-card-foot">
-          {onToggleGroup && <GroupMenu name={name} all={groupNames ?? []} mine={inGroups ?? []} onToggle={onToggleGroup} />}
-          {onToggleHidden && (
-            <button type="button" className="hc-icon-btn hc-text-btn" aria-pressed={!!hidden} aria-label={`Hide ${name}`} title={hidden ? 'Unhide' : 'Hide'} onClick={onToggleHidden}>
-              {hidden ? 'Unhide' : 'Hide'}
-            </button>
-          )}
-        </div>
+      {!selecting && hasBrightness(entity) && (
+        <div className="hc-tile-feature"><Brightness entity={entity} disabled={disabled} onAction={onAction} /></div>
+      )}
+      {!selecting && d === 'climate' && (
+        <div className="hc-tile-feature"><Climate entity={entity} disabled={disabled} onAction={onAction} /></div>
       )}
     </li>
   );

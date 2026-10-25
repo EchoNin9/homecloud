@@ -158,14 +158,19 @@ The NAS itself can't reach `<ADGUARD_IP>` (a macvlan limit). It keeps using DSM 
 
 The `monitor` service sets `sensor.docker_<container>` in HA every 60 s, and the bridge sends these to the
 cloud like any other sensor. The web dashboard shows them as sensor tiles, plus a red **Service down**
-chip when one isn't `running` or is `unhealthy`. It needs `sensor` in `BRIDGE_ALLOWED_DOMAINS`
+badge when one isn't `running` or is `unhealthy`. It needs `sensor` in `BRIDGE_ALLOWED_DOMAINS`
 (it is by default).
+
+Only compose containers (any project) are reported, so a one-off `docker run` doesn't raise a false alarm.
+HA keeps a removed container's last state until HA restarts, so a deleted container can leave a stale
+**Service down** badge. Clear it with `sudo docker compose restart homeassistant`: the monitor re-sends the
+live containers within 60 s.
 
 ## 10. Upgrading
 
 The `wud` service (What's Up Docker) checks every container's image daily at 06:00. When a newer image
-exists, the dashboard shows an amber **Update** chip. Clicking it shows the commands to run. It only
-notifies: nothing in the cloud can upgrade the NAS.
+exists, the dashboard shows an amber update badge (and a count on **Updates** in the sidebar). Clicking
+either shows the commands to run. It only notifies: nothing in the cloud can upgrade the NAS.
 
 Setup, once:
 1. Add an MQTT user for it. Put the password in `.env` as `WUD_MQTT_PASSWORD`, then run
@@ -178,7 +183,7 @@ Setup, once:
 
 Upgrading, from the stack folder (take a backup first: `sudo docker compose exec backup bash /backup.sh`):
 
-| The chip says | Do |
+| The update says | Do |
 |---|---|
 | `<svc> · new :<tag>` (same tag, new image) | `sudo docker compose pull <svc> && sudo docker compose up -d <svc>` |
 | `<svc> <old> → <new>` | Change the image tag in `docker-compose.yml` (and in the repo), then `sudo docker compose up -d <svc>` |
@@ -240,6 +245,7 @@ Each of these has broken this stack at least once. Add new ones here when you hi
 | Mosquitto exits | Missing or wrongly-owned `passwd` file (step 3), see `docker logs`. |
 | Mosquitto logs `Error saving in-memory database ... Permission denied` | `mosquitto/data` not writable by UID 1883 (see Synology gotchas). |
 | `sudo: docker: command not found` | Use `/usr/local/bin/docker` (see Synology gotchas). |
+| **Service down** badge for a container that no longer exists | HA keeps the last state of a removed container. `sudo docker compose restart homeassistant` (see §9). |
 | Container sensors or update tiles show `unavailable` after a recreate | WUD re-adds recreated containers on its next scan (06:00), or `docker compose restart wud`. |
 | Zigbee device not found | `ls /dev/tty*` on the NAS; driver not loaded (step 6); container needs the device path in `.env`. |
 | Ports 8123 / 1883 busy | Another package uses them; Home Assistant on host networking cannot change port without editing HA's `http:` config. |
