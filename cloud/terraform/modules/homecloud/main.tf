@@ -20,10 +20,13 @@ locals {
   client_ids     = local.create_pool ? [aws_cognito_user_pool_client.this[0].id] : var.existing_user_pool_client_ids
   cognito_domain = local.create_pool ? "${aws_cognito_user_pool_domain.this[0].domain}.auth.${local.region}.amazoncognito.com" : var.existing_cognito_domain
 
-  web_url = var.create_web_hosting ? "https://${aws_cloudfront_distribution.web[0].domain_name}" : null
+  cloudfront_url = var.create_web_hosting ? "https://${aws_cloudfront_distribution.web[0].domain_name}" : null
+  # The custom domain is the web URL once its certificate is attached (web.tf), else CloudFront's.
+  web_url = local.web_cert_arn != null ? "https://${local.web_domain}" : local.cloudfront_url
   web_urls = concat(
     [for u in var.web_callback_urls : u],
-    local.web_url == null ? [] : ["${local.web_url}/"],
+    local.cloudfront_url == null ? [] : ["${local.cloudfront_url}/"],
+    local.web_domain == null ? [] : ["https://${local.web_domain}/"],
   )
   cors_origins = distinct([for u in local.web_urls : regex("^https?://[^/]+", u)])
   # Native (Android/iOS) apps sign in through the same public client with PKCE.

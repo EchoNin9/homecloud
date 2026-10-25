@@ -76,8 +76,13 @@ resource "aws_cloudfront_distribution" "web" {
     }
   }
 
+  aliases = local.web_cert_arn == null ? [] : [local.web_domain]
+
   viewer_certificate {
-    cloudfront_default_certificate = true
+    cloudfront_default_certificate = local.web_cert_arn == null
+    acm_certificate_arn            = local.web_cert_arn
+    ssl_support_method             = local.web_cert_arn == null ? null : "sni-only"
+    minimum_protocol_version       = local.web_cert_arn == null ? "TLSv1" : "TLSv1.2_2021"
   }
 
   tags = local.common_tags
@@ -114,4 +119,62 @@ resource "aws_s3_object" "config" {
     clientId      = local.client_ids[0]
     cognitoDomain = local.cognito_domain
   })
+}
+
+# ---------- Optional custom domain (web_domain) ----------
+# Route 53 (route53_zone_id set): validation + alias records are created here, one apply.
+# Any other DNS host: apply once, create the web_dns_records output at the host, and apply again
+# when the certificate shows ISSUED; only then does CloudFront switch to the domain.
+locals {
+  web_domain      = var.create_web_hosting ? var.web_domain : null
+  web_dns_managed = local.web_domain != null && var.route53_zone_id != null
+  web_cert_arn = local.web_dns_managed ? one(aws_acm_certificate_validation.web[*].certificate_arn) : one([
+    for c in aws_acm_certificate.web : c.arn if c.status == "ISSUED"
+  ])
+}
+
+resource "aws_acm_certificate" "web" {
+  count             = local.web_domain == null ? 0 : 1
+  domain_name       = local.web_domain
+  validation_method = "DNS"
+  tags              = local.common_tags
+
+  lifecycle {
+    create_before_destroy = true
+    # ponytail: CloudFront only takes us-east-1 certificates; a provider alias would lift this.
+    precondition {
+      condition     = local.region == "us-east-1"
+      error_message = "web_domain needs the stack in us-east-1 (CloudFront certificates must be issued there)."
+    }
+  }
+}
+
+resource "aws_route53_record" "web_validation" {
+  for_each = {
+    for o in flatten(aws_acm_certificate.web[*].domain_validation_options) : o.domain_name => o if local.web_dns_managed
+  }
+  zone_id         = var.route53_zone_id
+  name            = each.value.resource_record_name
+  type            = each.value.resource_record_type
+  records         = [each.value.resource_record_value]
+  ttl             = 300
+  allow_overwrite = true
+}
+
+resource "aws_acm_certificate_validation" "web" {
+  count                   = local.web_dns_managed ? 1 : 0
+  certificate_arn         = aws_acm_certificate.web[0].arn
+  validation_record_fqdns = [for r in aws_route53_record.web_validation : r.fqdn]
+}
+
+resource "aws_route53_record" "web" {
+  for_each = local.web_dns_managed ? toset(["A", "AAAA"]) : toset([])
+  zone_id  = var.route53_zone_id
+  name     = local.web_domain
+  type     = each.key
+  alias {
+    name                   = aws_cloudfront_distribution.web[0].domain_name
+    zone_id                = aws_cloudfront_distribution.web[0].hosted_zone_id
+    evaluate_target_health = false
+  }
 }

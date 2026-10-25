@@ -55,3 +55,20 @@ output "web_distribution_id" {
 output "table_name" {
   value = aws_dynamodb_table.state.name
 }
+
+output "web_domain_status" {
+  description = "Custom domain progress: null (not set), PENDING_VALIDATION (create web_dns_records, then apply again), ISSUED but not attached yet (apply again), or LIVE."
+  value = local.web_domain == null ? null : (
+    local.web_cert_arn != null ? "LIVE" : one(aws_acm_certificate.web[*].status)
+  )
+}
+
+output "web_dns_records" {
+  description = "DNS records to create at an external DNS host (web_domain set, route53_zone_id null): certificate validation, then the domain itself pointing at CloudFront. Empty when Route 53 manages them."
+  value = local.web_domain == null || local.web_dns_managed ? [] : concat(
+    [for o in flatten(aws_acm_certificate.web[*].domain_validation_options) : {
+      name = o.resource_record_name, type = o.resource_record_type, value = o.resource_record_value
+    }],
+    [{ name = "${local.web_domain}.", type = "CNAME", value = "${aws_cloudfront_distribution.web[0].domain_name}." }],
+  )
+}

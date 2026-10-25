@@ -41,6 +41,18 @@ variable "history_utc_offset_hours" {
   default     = 0
 }
 
+variable "web_domain" {
+  description = "Optional custom domain for the web app, e.g. homecloud.example.com. See docs/first-deploy.md \"Custom domain\"."
+  type        = string
+  default     = null
+}
+
+variable "route53_zone_id" {
+  description = "Route 53 hosted zone id for web_domain, or null when DNS is hosted elsewhere (e.g. ClouDNS)."
+  type        = string
+  default     = null
+}
+
 provider "aws" {
   region = var.region
 }
@@ -54,6 +66,8 @@ module "homecloud" {
   # Creates its own Cognito pool, client, hosted UI domain and the "admin" group.
   allowed_groups           = ["admin"]
   history_utc_offset_hours = var.history_utc_offset_hours
+  web_domain               = var.web_domain
+  route53_zone_id          = var.route53_zone_id
 }
 
 output "api_url" { value = module.homecloud.api_url }
@@ -63,6 +77,8 @@ output "web_url" { value = module.homecloud.web_url }
 output "web_bucket" { value = module.homecloud.web_bucket }
 output "web_distribution_id" { value = module.homecloud.web_distribution_id }
 output "table_name" { value = module.homecloud.table_name }
+output "web_domain_status" { value = module.homecloud.web_domain_status }
+output "web_dns_records" { value = module.homecloud.web_dns_records }
 output "user_pool_id" { value = module.homecloud.user_pool_id }
 output "user_pool_client_id" { value = module.homecloud.user_pool_client_id }
 output "cognito_domain" { value = module.homecloud.cognito_domain }
