@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Entity } from '../client';
-import { DEFAULT_PREFS, MAX_QUERIES, organize, prettyState, saveQuery, sunTimes, updateInfo, warnings } from './util';
+import { DEFAULT_PREFS, MAX_QUERIES, organize, prettyState, saveQuery, stateText, sunTimes, updateInfo, warnings } from './util';
 
 const e = (entity_id: string, name: string, last_changed = '2026-01-01T00:00:00Z'): Entity => ({
   entity_id,
@@ -153,5 +153,20 @@ describe('updates', () => {
       attributes: { friendly_name: 'NAS2 DSM update', installed_version: 'DSM 7.4.1', latest_version: 'DSM 7.4.1 Update 1' } };
     expect(updateInfo(dsm)).toMatchObject({ container: false, steps: [] });
     expect(warnings([dsm])[0].text).toBe('NAS2 DSM update → DSM 7.4.1 Update 1');
+  });
+});
+
+describe('stateText', () => {
+  const ent = (entity_id: string, state: string, attributes: Record<string, unknown> = {}) =>
+    ({ entity_id, state, attributes, last_changed: '2026-10-24T00:00:00Z', updated_ts: 0 }) as Entity;
+  it('words the tile second line like HA', () => {
+    expect(stateText(ent('light.a', 'on', { brightness: 127.5 }))).toBe('On · 50%');
+    expect(stateText(ent('light.a', 'off', { brightness: 127.5 }))).toBe('Off');
+    expect(stateText(ent('sensor.t', '44', { unit_of_measurement: '°C' }))).toBe('44 °C');
+    expect(stateText(ent('binary_sensor.d', 'on', { device_class: 'door' }))).toBe('Open');
+    expect(stateText(ent('update.x', 'on', { latest_version: 'sha256:abc' }))).toBe('New image available');
+    expect(stateText(ent('update.x', 'on', { latest_version: 'v2' }))).toBe('v2 available');
+    expect(stateText(ent('climate.c', 'heat', { hvac_action: 'heating', current_temperature: 19.5, temperature_unit: '°C' }))).toBe('Heating · 19.5 °C');
+    expect(stateText(ent('switch.s', 'unavailable'))).toBe('Unavailable');
   });
 });
