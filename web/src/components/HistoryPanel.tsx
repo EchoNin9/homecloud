@@ -11,7 +11,7 @@ const PAD = { l: 56, r: 8, t: 8, b: 22 };
 const PH = H - PAD.t - PAD.b;
 
 /** Chart width in CSS px, so text stays 11px on phones instead of scaling down with the SVG. */
-function useWidth(fallback = 600) {
+export function useWidth(fallback = 600) {
   const ref = useRef<HTMLDivElement>(null);
   const [w, setW] = useState(fallback);
   useEffect(() => {
