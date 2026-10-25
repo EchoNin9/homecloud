@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Entity } from '../client';
-import { DEFAULT_PREFS, MAX_QUERIES, organize, prettyState, saveQuery, sunTimes, warnings } from './util';
+import { DEFAULT_PREFS, MAX_QUERIES, organize, prettyState, saveQuery, sunTimes, updateInfo, warnings } from './util';
 
 const e = (entity_id: string, name: string, last_changed = '2026-01-01T00:00:00Z'): Entity => ({
   entity_id,
@@ -128,5 +128,30 @@ describe('drive warning label', () => {
   it('is short', () => {
     const e: Entity = { entity_id: 'sensor.nas2_drive_1_temperature', state: '54', last_changed: '', attributes: { friendly_name: 'NAS2 (Drive 1) Temperature', unit_of_measurement: '°C' } };
     expect(warnings([e])[0].text).toBe('NAS2 Drive 1 · 54°C');
+  });
+});
+
+describe('updates', () => {
+  const upd = (title: string, from: string, to: string, state = 'on'): Entity => ({
+    entity_id: `update.wud_container_local_${title.replace(/-/g, '_')}`, state, last_changed: '',
+    attributes: { title, installed_version: from, latest_version: to },
+  });
+  it('chips only pending updates, last, with a tag or digest hint', () => {
+    const w = warnings([upd('homecloud-adguard-1', 'v0.107.79', 'v0.107.80'), upd('homecloud-mosquitto-1', '2', '2', 'off'),
+      upd('homecloud-homeassistant-1', 'stable', 'sha256:2193'), { entity_id: 'sensor.docker_x', state: 'exited', last_changed: '', attributes: {} }]);
+    expect(w.map((x) => [x.kind, x.text])).toEqual([
+      ['service', 'sensor.docker_x · exited'],
+      ['update', 'adguard v0.107.79 → v0.107.80'],
+      ['update', 'homeassistant · new :stable'],
+    ]);
+  });
+  it('pulls for a digest, edits the tag otherwise', () => {
+    expect(updateInfo(upd('homecloud-homeassistant-1', 'stable', 'sha256:2193')).steps).toEqual([
+      'sudo docker compose pull homeassistant', 'sudo docker compose up -d homeassistant']);
+    expect(updateInfo(upd('homecloud-monitor-1', '27-cli', '29-cli')).steps).toEqual(['sudo docker compose up -d monitor']);
+    const dsm: Entity = { entity_id: 'update.nas2_dsm_update', state: 'on', last_changed: '',
+      attributes: { friendly_name: 'NAS2 DSM update', installed_version: 'DSM 7.4.1', latest_version: 'DSM 7.4.1 Update 1' } };
+    expect(updateInfo(dsm)).toMatchObject({ container: false, steps: [] });
+    expect(warnings([dsm])[0].text).toBe('NAS2 DSM update → DSM 7.4.1 Update 1');
   });
 });

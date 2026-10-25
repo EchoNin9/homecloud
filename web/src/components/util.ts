@@ -145,7 +145,7 @@ export const DRIVE_MAX_C = 50;
 const DOOR_CLASSES = new Set(['door', 'garage_door']);
 
 export interface Warning {
-  kind: 'door' | 'service' | 'drive';
+  kind: 'door' | 'service' | 'drive' | 'update';
   entity: Entity;
   text: string;
 }
@@ -166,6 +166,10 @@ export function warnings(entities: Entity[], nowMs = Date.now()): Warning[] {
     } else if (e.entity_id.startsWith('sensor.docker_')) {
       const bad = e.state !== 'running' ? e.state : a.health === 'unhealthy' ? 'unhealthy' : '';
       if (bad) out.push({ kind: 'service', entity: e, text: `${friendlyName(e)} · ${bad}` });
+    } else if (domainOf(e.entity_id) === 'update' && e.state === 'on') {
+      const u = updateInfo(e);
+      const text = !u.container ? `${u.service} → ${u.to}` : u.digest ? `${u.service} · new :${u.from}` : `${u.service} ${u.from} → ${u.to}`;
+      out.push({ kind: 'update', entity: e, text });
     } else if (domainOf(e.entity_id) === 'sensor' && /drive_\d+_temperature$/.test(e.entity_id)) {
       const v = Number(e.state);
       if (Number.isFinite(v) && toC(v, a.unit_of_measurement) > DRIVE_MAX_C) {
@@ -173,8 +177,39 @@ export function warnings(entities: Entity[], nowMs = Date.now()): Warning[] {
       }
     }
   }
-  const rank = { door: 0, service: 1, drive: 2 };
+  const rank = { door: 0, service: 1, drive: 2, update: 3 };
   return out.sort((x, y) => rank[x.kind] - rank[y.kind] || x.text.localeCompare(y.text));
+}
+
+export interface UpdateInfo {
+  /** A NAS container (from the update checker). Other HA updates (DSM, firmware) install from their own UI. */
+  container: boolean;
+  service: string;
+  from: string;
+  to: string;
+  /** Same tag, new image (e.g. `:stable`): pull it. Otherwise the tag in docker-compose.yml must change. */
+  digest: boolean;
+  url: string | null;
+  /** Shell commands to run in the NAS stack folder (after editing the tag when !digest). */
+  steps: string[];
+}
+
+/** HA `update.*` entity (from the NAS update checker) -> what to tell the user to run. */
+export function updateInfo(e: Entity): UpdateInfo {
+  const a = e.attributes;
+  // ponytail: compose names containers <project>-<service>-<n>; a project name containing '-' breaks this.
+  const title = typeof a.title === 'string' && a.title ? a.title : friendlyName(e);
+  const container = e.entity_id.startsWith('update.wud_container_');
+  const service = container ? title.replace(/^[^-]+-/, '').replace(/-\d+$/, '') : friendlyName(e);
+  const from = String(a.installed_version ?? '?');
+  const to = String(a.latest_version ?? '?');
+  const digest = to.startsWith('sha256:');
+  const steps = !container
+    ? []
+    : digest
+    ? [`sudo docker compose pull ${service}`, `sudo docker compose up -d ${service}`]
+    : [`sudo docker compose up -d ${service}`];
+  return { container, service, from, to, digest, url: typeof a.release_url === 'string' ? a.release_url : null, steps };
 }
 
 const RAD = Math.PI / 180;
