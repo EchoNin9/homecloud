@@ -146,3 +146,13 @@ variable "history_entities" {
     "sensor.docker_*",
   ]
 }
+
+variable "history_utc_offset_hours" {
+  description = "Fixed UTC offset (hours) where daily history rollups split, e.g. -7 for a zone that stays at UTC-7. No DST handling."
+  type        = number
+  default     = 0
+  validation {
+    condition     = var.history_utc_offset_hours == floor(var.history_utc_offset_hours) && var.history_utc_offset_hours >= -12 && var.history_utc_offset_hours <= 14
+    error_message = "history_utc_offset_hours must be a whole number from -12 to 14."
+  }
+}

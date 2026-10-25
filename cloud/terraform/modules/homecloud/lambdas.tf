@@ -147,13 +147,14 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = {
-      TABLE_NAME       = aws_dynamodb_table.state.name
-      HOME_IDS         = join(",", var.home_ids)
-      ALLOWED_GROUPS   = join(",", var.allowed_groups)
-      ALLOWED_SERVICES = join(",", var.allowed_services)
-      HISTORY_ENTITIES = join(",", var.history_entities)
-      IOT_ENDPOINT     = data.aws_iot_endpoint.this.endpoint_address
-      API_VERSION      = "0.1.0"
+      TABLE_NAME               = aws_dynamodb_table.state.name
+      HOME_IDS                 = join(",", var.home_ids)
+      ALLOWED_GROUPS           = join(",", var.allowed_groups)
+      ALLOWED_SERVICES         = join(",", var.allowed_services)
+      HISTORY_ENTITIES         = join(",", var.history_entities)
+      HISTORY_UTC_OFFSET_HOURS = tostring(var.history_utc_offset_hours)
+      IOT_ENDPOINT             = data.aws_iot_endpoint.this.endpoint_address
+      API_VERSION              = "0.1.0"
     }
   }
 

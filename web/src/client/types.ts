@@ -36,7 +36,7 @@ export interface RawPoint {
 }
 
 export interface DayPoint {
-  /** YYYY-MM-DD (UTC day). Numeric entities carry min/max/avg; others carry dur (state -> seconds). */
+  /** YYYY-MM-DD (the home's history day, see contract.md). Numeric entities carry min/max/avg; others carry dur (state -> seconds). */
   date: string;
   min?: number;
   max?: number;

@@ -116,7 +116,9 @@ An entity is tracked when its id matches one of the module's `history_entities` 
 | `HIST#{homeId}#{entity_id}` | `D#{YYYY-MM-DD}` | Numeric: `min`, `max`, `avg` (time-weighted). Otherwise: `dur` (map of state → seconds). Both have `n` (changes that day) and `ttl` (15 months) |
 
 - `R#` items are keyed by `last_changed`, so attribute-only updates rewrite the same item.
-- A daily rollup job writes `D#` items for each of the last 3 **UTC** days. A missed run
+- A daily rollup job writes `D#` items for each of the last 3 **local** days. Local means the
+  module's fixed `history_utc_offset_hours` (no DST, default 0 = UTC), and `D#` dates and the
+  history API's day bounds both use it. A missed run
   heals on the next one.
 - A day's rollup opens with the last raw state from before midnight (or the `ENTITY#` item
   if no raw state is older). History starts when this is first deployed.

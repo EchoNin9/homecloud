@@ -35,6 +35,12 @@ variable "device_csr_files" {
   default     = {}
 }
 
+variable "history_utc_offset_hours" {
+  description = "Where daily history rollups split: fixed UTC offset in hours (e.g. -7). See the module variable."
+  type        = number
+  default     = 0
+}
+
 provider "aws" {
   region = var.region
 }
@@ -46,7 +52,8 @@ module "homecloud" {
   device_csrs        = merge(var.device_csrs, { for k, p in var.device_csr_files : k => file(p) })
   create_web_hosting = true
   # Creates its own Cognito pool, client, hosted UI domain and the "admin" group.
-  allowed_groups = ["admin"]
+  allowed_groups           = ["admin"]
+  history_utc_offset_hours = var.history_utc_offset_hours
 }
 
 output "api_url" { value = module.homecloud.api_url }

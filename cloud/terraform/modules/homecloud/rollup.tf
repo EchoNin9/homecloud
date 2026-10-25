@@ -56,9 +56,10 @@ resource "aws_lambda_function" "rollup" {
 
   environment {
     variables = {
-      TABLE_NAME       = aws_dynamodb_table.state.name
-      HOME_IDS         = join(",", var.home_ids)
-      HISTORY_ENTITIES = join(",", var.history_entities)
+      TABLE_NAME               = aws_dynamodb_table.state.name
+      HOME_IDS                 = join(",", var.home_ids)
+      HISTORY_ENTITIES         = join(",", var.history_entities)
+      HISTORY_UTC_OFFSET_HOURS = tostring(var.history_utc_offset_hours)
     }
   }
 
@@ -67,8 +68,9 @@ resource "aws_lambda_function" "rollup" {
 }
 
 resource "aws_cloudwatch_event_rule" "rollup" {
-  name                = "${var.name_prefix}-rollup"
-  schedule_expression = "cron(15 0 * * ? *)" # 00:15 UTC daily
+  name = "${var.name_prefix}-rollup"
+  # 00:15 local (history_utc_offset_hours) daily, expressed in UTC.
+  schedule_expression = "cron(15 ${(24 - var.history_utc_offset_hours) % 24} * * ? *)"
   tags                = local.common_tags
 }
 
