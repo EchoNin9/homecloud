@@ -148,7 +148,7 @@
   font: inherit; text-align: left; cursor: pointer; color: #fff; border: 0; border-radius: 10px;
   width: 150px; min-height: 56px; padding: 6px 10px; display: flex; flex-direction: column; justify-content: center;
 }
-.hc-warn[data-kind='door'] { background: var(--hc-door); }
+.hc-warn[data-kind='door'], .hc-warn[data-kind='service'] { background: var(--hc-door); }
 .hc-warn[data-kind='drive'] { background: var(--hc-drive); }
 .hc-warn:hover { filter: brightness(1.1); }
 .hc-warn-kind { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.9; }

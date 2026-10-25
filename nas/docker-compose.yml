@@ -58,3 +58,59 @@ services:
     security_opt: ["no-new-privileges:true"]
     depends_on: [homeassistant]
     restart: unless-stopped
+
+  # DNS ad-blocker on its own LAN IP (macvlan), because DSM's DNS Server already owns :53 on the
+  # NAS's addresses. UI and first-run wizard: http://${ADGUARD_IP}:3000. Setup: docs/synology.md.
+  # ponytail: macvlan containers can't reach their parent NIC's host IP; that's why the parent is a
+  # spare NIC (eth3), so AdGuard can still forward the local zone to DSM DNS on bond0.
+  adguard:
+    profiles: [adguard]   # enable with: docker compose --profile adguard up -d
+    image: adguard/adguardhome:v0.107.79
+    networks:
+      lan:
+        ipv4_address: ${ADGUARD_IP:-}
+    volumes:
+      - ${DATA_ROOT}/adguard/conf:/opt/adguardhome/conf
+      - ${DATA_ROOT}/adguard/work:/opt/adguardhome/work
+    restart: unless-stopped
+
+  # Mirrors each container's state into HA as sensor.docker_<name> (contract.md "NAS container sensors").
+  # ponytail: the Docker socket is root-equivalent; this runs one fixed script. Use a socket proxy if more joins it.
+  monitor:
+    image: docker:27-cli
+    network_mode: host   # reaches Home Assistant at 127.0.0.1:8123
+    environment:
+      HA_URL: http://127.0.0.1:8123
+      HA_TOKEN: ${HA_TOKEN:?set HA_TOKEN in .env}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./scripts/monitor.sh:/monitor.sh:ro
+    entrypoint: ["sh", "/monitor.sh"]
+    restart: unless-stopped
+
+  # Daily config backup of ${DATA_ROOT} into ${DATA_ROOT}/backups via scripts/backup.sh.
+  backup:
+    image: debian:bookworm-slim   # GNU tar + bash for backup.sh
+    environment:
+      DATA_ROOT: /data
+      BACKUP_DIR: /data/backups
+      BACKUP_KEEP: ${BACKUP_KEEP:-14}
+      BACKUP_AT: ${BACKUP_AT:-03:30}
+    volumes:
+      - ${DATA_ROOT}:/data:ro
+      - ${DATA_ROOT}/backups:/data/backups
+      - ./scripts/backup.sh:/backup.sh:ro
+      - /etc/localtime:/etc/localtime:ro
+    # Sleep until the next BACKUP_AT (local time), back up, repeat.
+    command: ["bash", "-c", "while :; do sleep $$(( ($$(date -d \"$$BACKUP_AT\" +%s) - $$(date +%s) + 86400) % 86400 )); bash /backup.sh; sleep 60; done"]
+    restart: unless-stopped
+
+networks:
+  lan:
+    driver: macvlan
+    driver_opts:
+      parent: ${ADGUARD_PARENT:-eth3}
+    ipam:
+      config:
+        - subnet: ${LAN_SUBNET:-10.0.0.0/24}
+          gateway: ${LAN_GATEWAY:-10.0.0.1}

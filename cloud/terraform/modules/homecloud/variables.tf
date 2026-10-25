@@ -134,3 +134,15 @@ variable "native_redirect_uris" {
     error_message = "native_redirect_uris must be custom-scheme URIs such as homecloud://auth (use web_callback_urls for http(s))."
   }
 }
+
+variable "history_entities" {
+  description = "Entity id globs to keep history for (raw 35 days, daily rollups 15 months). See contract.md \"History\". Empty = no history."
+  type        = list(string)
+  default = [
+    "sensor.*_drive_*_temperature",
+    "binary_sensor.*door*",
+    "light.*",
+    "sun.sun",
+    "sensor.docker_*",
+  ]
+}

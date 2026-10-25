@@ -145,7 +145,7 @@ export const DRIVE_MAX_C = 50;
 const DOOR_CLASSES = new Set(['door', 'garage_door']);
 
 export interface Warning {
-  kind: 'door' | 'drive';
+  kind: 'door' | 'service' | 'drive';
   entity: Entity;
   text: string;
 }
@@ -155,7 +155,7 @@ const driveLabel = (n: string) => n.replace(/\s*temperature$/i, '').replace(/[()
 
 const toC = (v: number, unit: unknown) => (typeof unit === 'string' && unit.includes('F') ? ((v - 32) * 5) / 9 : v);
 
-/** Doors left open longer than DOOR_OPEN_MS, and drives hotter than DRIVE_MAX_C. */
+/** Doors left open longer than DOOR_OPEN_MS, NAS containers not running/healthy, and drives hotter than DRIVE_MAX_C. */
 export function warnings(entities: Entity[], nowMs = Date.now()): Warning[] {
   const out: Warning[] = [];
   for (const e of entities) {
@@ -163,6 +163,9 @@ export function warnings(entities: Entity[], nowMs = Date.now()): Warning[] {
     if (domainOf(e.entity_id) === 'binary_sensor' && DOOR_CLASSES.has(String(a.device_class)) && e.state === 'on') {
       const since = Date.parse(e.last_changed);
       if (!since || nowMs - since >= DOOR_OPEN_MS) out.push({ kind: 'door', entity: e, text: `${friendlyName(e)} open` });
+    } else if (e.entity_id.startsWith('sensor.docker_')) {
+      const bad = e.state !== 'running' ? e.state : a.health === 'unhealthy' ? 'unhealthy' : '';
+      if (bad) out.push({ kind: 'service', entity: e, text: `${friendlyName(e)} · ${bad}` });
     } else if (domainOf(e.entity_id) === 'sensor' && /drive_\d+_temperature$/.test(e.entity_id)) {
       const v = Number(e.state);
       if (Number.isFinite(v) && toC(v, a.unit_of_measurement) > DRIVE_MAX_C) {
@@ -170,7 +173,8 @@ export function warnings(entities: Entity[], nowMs = Date.now()): Warning[] {
       }
     }
   }
-  return out.sort((x, y) => (x.kind === y.kind ? x.text.localeCompare(y.text) : x.kind === 'door' ? -1 : 1));
+  const rank = { door: 0, service: 1, drive: 2 };
+  return out.sort((x, y) => rank[x.kind] - rank[y.kind] || x.text.localeCompare(y.text));
 }
 
 const RAD = Math.PI / 180;

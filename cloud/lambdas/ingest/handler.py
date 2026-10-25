@@ -95,7 +95,15 @@ def _state(home, event):
         })
     # snapshot=true is handled like a delta: upsert only. Entities missing from a snapshot
     # are NOT deleted; explicit deletions arrive via `removed`.
-    written = sum(1 for it in items if hc.put_entity_if_newer(_table(), it))
+    written_items = [it for it in items if hc.put_entity_if_newer(_table(), it)]
+    written = len(written_items)
+    globs = hc.csv_env(os.environ.get("HISTORY_ENTITIES"))
+    ttl = hc.now_ms() // 1000 + hc.HIST_RAW_TTL_SECONDS
+    hist = [{"PK": f"HIST#{home}#{it['entity_id']}", "SK": f"R#{it['last_changed']}", "state": it["state"], "ttl": ttl}
+            for it in written_items
+            if isinstance(it["last_changed"], str) and it["last_changed"] and hc.is_tracked(it["entity_id"], globs)]
+    if hist:
+        hc.put_items(_table(), hist)
     removed = [r for r in (event.get("removed") or []) if isinstance(r, str) and hc.ENTITY_ID_RE.match(r)]
     if removed:
         hc.delete_items(_table(), [{"PK": f"HOME#{home}", "SK": f"ENTITY#{r}"} for r in removed])

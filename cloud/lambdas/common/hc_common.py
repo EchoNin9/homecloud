@@ -11,6 +11,7 @@ import re
 import secrets
 import time
 from decimal import Decimal
+from fnmatch import fnmatchcase
 
 PAYLOAD_VERSION = 1
 HOME_ID_RE = re.compile(r"^[a-z0-9-]{1,32}$")
@@ -18,6 +19,8 @@ ENTITY_ID_RE = re.compile(r"^[a-z_]+\.[a-z0-9_]+$")
 DOMAIN_RE = re.compile(r"^[a-z_]+$")
 CMD_ID_RE = re.compile(r"^c_[0-9A-Za-z]{1,40}$")
 CMD_TTL_SECONDS = 7 * 24 * 3600
+HIST_RAW_TTL_SECONDS = 35 * 24 * 3600
+HIST_DAY_TTL_SECONDS = 457 * 24 * 3600  # 15 months
 
 _B32 = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"  # Crockford, as in ULID
 
@@ -111,3 +114,8 @@ def dumps(obj):
 
 def csv_env(value):
     return [x.strip() for x in (value or "").split(",") if x.strip()]
+
+
+def is_tracked(entity_id, globs):
+    """History is kept for entities matching any HISTORY_ENTITIES glob."""
+    return any(fnmatchcase(entity_id, g) for g in globs)
