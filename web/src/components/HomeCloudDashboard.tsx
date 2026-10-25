@@ -234,13 +234,6 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
     });
   };
   const sectionId = (key: string) => `${homeLabelId}-${key}`;
-  const [jumpTo, setJumpTo] = useState<string | null>(null);
-  useEffect(() => {
-    if (jumpTo) {
-      document.getElementById(jumpTo)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      setJumpTo(null);
-    }
-  }, [jumpTo, groups]);
   const [queryMsg, setQueryMsg] = useState('');
   const onSaveQuery = () => {
     const next = saveQuery(prefs.queries, filter);
@@ -288,7 +281,7 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
         onToggleCollapsed={toggleCollapsed}
         prefs={prefs}
         onView={(v) => {
-          setPrefs({ group: v.group, sort: v.sort });
+          setPrefs({ group: v.group, sort: v.sort, only: '' });
           closeNav();
           window.scrollTo({ top: 0 });
         }}
@@ -299,18 +292,18 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
         }}
         groups={groupNames.map((g): [string, number] => [g, prefs.groups[g]!.length])}
         onOpenGroup={(g) => {
-          setPrefs({ group: 'custom', sort: 'name' });
+          setPrefs({ group: 'custom', sort: 'name', only: g });
           closeNav();
-          setJumpTo(sectionId(`grp:${g}`));
+          window.scrollTo({ top: 0 });
         }}
         onRenameGroup={(from, to) => {
           if (prefs.groups[to]) return;
           const { [from]: ids, ...rest } = prefs.groups;
-          setPrefs({ groups: { ...rest, [to]: ids! } });
+          setPrefs({ groups: { ...rest, [to]: ids! }, ...(prefs.only === from ? { only: to } : {}) });
         }}
         onDeleteGroup={(g) => {
           const { [g]: _gone, ...rest } = prefs.groups;
-          setPrefs({ groups: rest });
+          setPrefs({ groups: rest, ...(prefs.only === g ? { only: '' } : {}) });
         }}
         filter={filter}
         onSaveQuery={onSaveQuery}
@@ -454,7 +447,11 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
         ) : homes && homes.length === 0 ? (
           <p className="hc-empty">No homes yet. Once your NAS bridge connects, it will appear here.</p>
         ) : groups.length === 0 && entities ? (
-          <p className="hc-empty">{filter ? `No entities match “${filter}”.` : 'This home has not reported any entities yet.'}</p>
+          <p className="hc-empty">
+            {filter ? `No entities match “${filter}”.`
+              : prefs.group === 'custom' && prefs.only ? `“${prefs.only}” has nothing to show. Its entities may be hidden; add some with Select.`
+              : 'This home has not reported any entities yet.'}
+          </p>
         ) : (
           groups.map(([key, title, list]) => (
             <section key={key} className="hc-section" aria-labelledby={sectionId(key)}>

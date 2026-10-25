@@ -82,7 +82,7 @@ export function Sidebar(p: Props) {
           <ul>
             {VIEWS.map((v) => (
               <li key={v.key}>
-                {item(v.key, v.icon, v.label, () => p.onView(v), { current: v === current })}
+                {item(v.key, v.icon, v.label, () => p.onView(v), { current: v === current && !(v.key === 'custom' && p.prefs.only) })}
                 {v === current && v.key !== 'custom' && p.sections.length > 1 && (
                   <ul className="hc-side-sub" aria-label={`${v.label} sections`}>
                     {p.sections.map(([id, title, n]) => (
@@ -113,7 +113,7 @@ export function Sidebar(p: Props) {
                           </form>
                         ) : (
                           <>
-                            <button type="button" className="hc-side-subitem" onClick={() => p.onOpenGroup(g)}>
+                            <button type="button" className="hc-side-subitem" aria-current={(current?.key === 'custom' && p.prefs.only === g) || undefined} onClick={() => p.onOpenGroup(g)}>
                               <span className="hc-side-label">{g}</span>
                               <span className="hc-side-count">{n}</span>
                             </button>
