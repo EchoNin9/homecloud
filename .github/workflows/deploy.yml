@@ -78,3 +78,19 @@ jobs:
 
       - name: Publish web
         run: ./scripts/deploy-web.sh
+
+      # Custom domain on an external DNS host: show what to create and where it's at. (Nothing secret:
+      # these records are public in DNS once created.)
+      - name: Custom domain status
+        working-directory: ${{ env.STACK }}
+        run: |
+          status=$(tofu output -json web_domain_status 2>/dev/null | jq -r '. // empty')
+          [ -n "$status" ] || exit 0
+          {
+            echo "### Custom domain: $status"
+            recs=$(tofu output -json web_dns_records | jq -r '.[] | "| \(.type) | `\(.name)` | `\(.value)` |"')
+            if [ -n "$recs" ] && [ "$status" != "LIVE" ]; then
+              echo "Create these at your DNS host, then push again (or re-run this workflow) once validated:"
+              echo; echo "| Type | Name | Value |"; echo "|---|---|---|"; echo "$recs"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

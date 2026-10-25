@@ -200,6 +200,37 @@ history off. Daily summaries split at local midnight for `history_utc_offset_hou
 default 0 = UTC). A daily `homecloud-rollup` Lambda runs at 00:15 local. Smoke test after a day:
 `aws lambda invoke --function-name homecloud-rollup /dev/stdout` returns `"rollups": N` with N > 0.
 
+## 10. Custom domain (optional)
+
+The web app answers on its CloudFront address (`https://dxxxx.cloudfront.net`) until you give it a
+domain. Use a subdomain, such as `homecloud.example.com`: some DNS hosts can't point a bare domain
+at CloudFront. The stack must be in `us-east-1`, which is where CloudFront certificates live.
+
+Set `web_domain` in `terraform.tfvars`. Then pick where its DNS is hosted:
+
+**A. Route 53 (AWS hosts the DNS).** Also set `route53_zone_id` to the hosted zone's id. One apply
+creates the certificate, validates it, and adds `A`/`AAAA` alias records. The deploy role needs the
+`Route53Records` statement, so re-apply the bootstrap stack first (step 9.5).
+
+**B. Any other DNS host (ClouDNS, Cloudflare, your registrar…).** Leave `route53_zone_id` unset.
+1. Apply (or, with auto-deploy, upload the tfvars to S3 and run the **deploy** workflow by hand).
+   This creates the certificate and prints `web_domain_status = PENDING_VALIDATION` and
+   `web_dns_records`, two `CNAME`s. The deploy workflow also shows them on the run's summary page.
+2. Create both `CNAME` records at the DNS host, exactly as printed:
+   - **Certificate validation:** `_xxxx.homecloud.example.com.` → `_yyyy.acm-validations.aws.`
+     Keep it: ACM uses it again to renew the certificate every year.
+   - **The site:** `homecloud.example.com.` → `dxxxx.cloudfront.net.`
+   On ClouDNS: open the zone, then **Add new record**, type **CNAME**. **Host** is the name without
+   the zone (e.g. `homecloud`, or `_xxxx.homecloud`), and **Points to** is the value, with its trailing dot.
+3. Wait for ACM to validate it, usually a few minutes:
+   `aws acm list-certificates --region us-east-1 --query "CertificateSummaryList[?DomainName=='homecloud.example.com'].Status"`
+   shows `ISSUED`.
+4. Apply again (or re-run the deploy workflow). CloudFront takes on the domain, and
+   `web_domain_status` becomes `LIVE`. The CloudFront change takes about 5–10 minutes to roll out.
+
+Either way, the domain is added to the Cognito sign-in redirect URLs and API CORS on the first
+apply. The CloudFront address keeps working too.
+
 ## Troubleshooting
 
 | Symptom | Usual cause | Fix |
