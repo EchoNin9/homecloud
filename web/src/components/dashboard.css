@@ -264,3 +264,26 @@
 }
 @media (max-width: 600px) { .hc-name { font-size: 0.9rem; } }
 .hc-muted { color: var(--hc-muted); }
+
+/* History dialog + chart (single series: accent line, recessive grid/axes). */
+.hc-history { width: min(680px, calc(100vw - 32px)); }
+.hc-range-btn[aria-pressed='true'] { background: var(--hc-accent); color: var(--hc-accent-text); border-color: var(--hc-accent); }
+.hc-chart-wrap { min-height: 120px; margin-top: 12px; }
+.hc-chart { position: relative; }
+.hc-chart svg { width: 100%; height: auto; display: block; touch-action: pan-y; }
+.hc-grid { stroke: var(--hc-border); stroke-width: 1; }
+.hc-axis { fill: var(--hc-muted); font-size: 11px; }
+.hc-line { fill: none; stroke: var(--hc-accent); stroke-width: 2; stroke-linejoin: round; }
+.hc-band { fill: color-mix(in srgb, var(--hc-accent) 22%, transparent); }
+.hc-bar, .hc-seg-on { fill: var(--hc-accent); background: var(--hc-accent); }
+.hc-seg-off { fill: var(--hc-border); background: var(--hc-border); }
+.hc-crosshair { stroke: var(--hc-muted); stroke-width: 1; stroke-dasharray: 3 3; }
+.hc-tip { position: absolute; top: 0; transform: translateX(-50%); pointer-events: none; white-space: nowrap; font-size: 0.8rem;
+  background: var(--hc-surface-2); color: var(--hc-text); border: 1px solid var(--hc-border); border-radius: 6px; padding: 2px 8px; }
+.hc-legend { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--hc-muted); margin: 6px 0 0; }
+.hc-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; }
+.hc-line-sw { height: 2px; background: var(--hc-accent); }
+.hc-table { margin-top: 8px; font-size: 0.85rem; }
+.hc-table table { border-collapse: collapse; margin-top: 6px; }
+.hc-table td { padding: 2px 12px 2px 0; }
+.hc-table tbody { display: block; max-height: 200px; overflow-y: auto; }

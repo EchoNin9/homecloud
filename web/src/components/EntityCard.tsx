@@ -27,6 +27,8 @@ interface Props {
   selecting?: boolean;
   selected?: boolean;
   onSelect?: () => void;
+  /** Set when the entity has history (history_entities). */
+  onHistory?: () => void;
 }
 
 function GroupMenu({ name, all, mine, onToggle }: { name: string; all: string[]; mine: string[]; onToggle: (g: string) => void }) {
@@ -182,7 +184,7 @@ const BINARY_WORDS: Record<string, [string, string]> = {
 /** Read-only entities get a compact one-row tile. */
 const READ_ONLY = new Set(['sensor', 'binary_sensor', 'sun', 'weather', 'update']);
 
-export function EntityCard({ entity, disabled, busy, onAction, fav, hidden, onToggleFav, onToggleHidden, groupNames, inGroups, onToggleGroup, selecting, selected, onSelect }: Props) {
+export function EntityCard({ entity, disabled, busy, onAction, fav, hidden, onToggleFav, onToggleHidden, groupNames, inGroups, onToggleGroup, selecting, selected, onSelect, onHistory }: Props) {
   const nameId = useId();
   const domain = domainOf(entity.entity_id);
   const name = friendlyName(entity);
@@ -285,6 +287,11 @@ export function EntityCard({ entity, disabled, busy, onAction, fav, hidden, onTo
         </div>
         {status && domain !== 'light' && domain !== 'switch' && domain !== 'fan' ? <span className="hc-pill">{prettyState(status)}</span> : null}
         {busy && <span className="hc-spinner" role="img" aria-label="Sending command" />}
+        {onHistory && (
+          <button type="button" className="hc-icon-btn" aria-label={`History of ${name}`} title="History" onClick={onHistory}>
+            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M2 13l4-5 3 3 5-7" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          </button>
+        )}
         {onToggleFav && (
           <button type="button" className="hc-icon-btn" aria-pressed={!!fav} aria-label={`Favourite ${name}`} title={fav ? 'Unfavourite' : 'Favourite'} onClick={onToggleFav}>
             {fav ? '★' : '☆'}

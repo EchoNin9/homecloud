@@ -1,5 +1,6 @@
 """HTTP API (API Gateway v2, payload 2.0) -> DynamoDB / IoT Core."""
 import base64
+import datetime as dt
 import json
 import logging
 import os
@@ -23,6 +24,11 @@ R_ENTITIES = re.compile(r"^/v1/homes/([^/]+)/entities$")
 R_ENTITY = re.compile(r"^/v1/homes/([^/]+)/entities/([^/]+)$")
 R_COMMANDS = re.compile(r"^/v1/homes/([^/]+)/commands$")
 R_COMMAND = re.compile(r"^/v1/homes/([^/]+)/commands/([^/]+)$")
+R_HISTORY = re.compile(r"^/v1/homes/([^/]+)/history/([^/]+)$")
+
+DAY_MS = 86_400_000
+HISTORY = {"raw": (DAY_MS, 35 * DAY_MS), "day": (30 * DAY_MS, 470 * DAY_MS)}  # default span, max span
+MAX_RAW_POINTS = 5000
 
 
 class ApiError(Exception):
@@ -139,7 +145,8 @@ def list_entities(event, home):
             break
         kwargs["ExclusiveStartKey"] = r["LastEvaluatedKey"]
     ents = [_entity_out(i) for i in items]
-    return 200, {"entities": ents, "updatedTs": max((e["updated_ts"] or 0 for e in ents), default=0)}
+    return 200, {"entities": ents, "updatedTs": max((e["updated_ts"] or 0 for e in ents), default=0),
+                 "historyEntities": hc.csv_env(os.environ.get("HISTORY_ENTITIES"))}
 
 
 def get_entity(home, entity_id):
@@ -190,6 +197,54 @@ def post_command(event, home, claims):
     return 202, {"id": cid, "status": "pending"}
 
 
+def _int_param(q, name, default):
+    v = q.get(name)
+    if v in (None, ""):
+        return default
+    try:
+        return int(v)
+    except ValueError:
+        raise ApiError(400, "bad_request", f"{name} must be epoch milliseconds")
+
+
+def get_history(event, home, entity_id):
+    if not hc.ENTITY_ID_RE.match(entity_id):
+        raise ApiError(400, "bad_request", "invalid entity id")
+    q = event.get("queryStringParameters") or {}
+    res = q.get("res") or "raw"
+    if res not in HISTORY:
+        raise ApiError(400, "bad_request", "res must be raw or day")
+    span, max_span = HISTORY[res]
+    to = _int_param(q, "to", hc.now_ms())
+    frm = _int_param(q, "from", to - span)
+    if not 0 <= to - frm <= max_span:
+        raise ApiError(400, "bad_request", "from must be before to, within the max span")
+    iso = lambda ms: dt.datetime.fromtimestamp(ms / 1000, dt.timezone.utc).isoformat()
+    pk = Key("PK").eq(f"HIST#{home}#{entity_id}")
+    out = {"entityId": entity_id, "res": res, "from": frm, "to": to, "prev": None, "points": []}
+    if res == "day":
+        lo, hi = f"D#{iso(frm)[:10]}", f"D#{iso(to)[:10]}"
+    else:
+        lo, hi = f"R#{iso(frm)}", f"R#{iso(to)}"
+        before = _table().query(KeyConditionExpression=pk & Key("SK").between("R#", lo),
+                                ScanIndexForward=False, Limit=1)["Items"]
+        if before:
+            out["prev"] = {"t": before[0]["SK"][2:], "state": before[0].get("state")}
+    kwargs = {"KeyConditionExpression": pk & Key("SK").between(lo, hi)}
+    while len(out["points"]) < MAX_RAW_POINTS:
+        r = _table().query(**kwargs)
+        for it in r.get("Items", []):
+            if res == "raw":
+                out["points"].append({"t": it["SK"][2:], "state": it.get("state")})
+            else:
+                out["points"].append({"date": it["SK"][2:], **{k: it[k] for k in ("min", "max", "avg", "dur", "n") if k in it}})
+        if not r.get("LastEvaluatedKey"):
+            break
+        kwargs["ExclusiveStartKey"] = r["LastEvaluatedKey"]
+    del out["points"][MAX_RAW_POINTS:]
+    return 200, out
+
+
 def get_command(home, cid):
     if not hc.CMD_ID_RE.match(cid):
         raise ApiError(400, "bad_request", "invalid command id")
@@ -218,6 +273,8 @@ def handler(event, context=None):
             route = ("post_cmd", R_COMMANDS.match(path).group(1))
         elif method == "GET" and R_COMMAND.match(path):
             route = ("get_cmd",) + R_COMMAND.match(path).groups()
+        elif method == "GET" and R_HISTORY.match(path):
+            route = ("history",) + R_HISTORY.match(path).groups()
         if route is None:
             raise ApiError(404, "not_found", "no such route")
 
@@ -231,6 +288,8 @@ def handler(event, context=None):
                 status, body = list_entities(event, home)
             elif name == "entity":
                 status, body = get_entity(home, route[2])
+            elif name == "history":
+                status, body = get_history(event, home, route[2])
             elif name == "post_cmd":
                 status, body = post_command(event, home, claims)
             else:

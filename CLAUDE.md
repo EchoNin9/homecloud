@@ -57,3 +57,7 @@ and the HTTP API. Change it **first**, in the same PR as the code. The three par
 - The bridge runs with a read-only filesystem, as UID 10001. Certificates must be readable
   by that UID.
 - Default command allowlists exclude `lock.unlock`. Don't add it to the defaults.
+- Synology DSM breaks containers in non-obvious ways, mostly through ACLs on file permissions.
+  `docs/synology.md` "Synology gotchas" is the list. **Whenever you discover a new one, add it
+  there in the same PR.**
+- `update.install` is never allowlisted. The dashboard tells the user about updates; it never applies them.

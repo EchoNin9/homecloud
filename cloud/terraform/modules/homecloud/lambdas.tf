@@ -151,6 +151,7 @@ resource "aws_lambda_function" "api" {
       HOME_IDS         = join(",", var.home_ids)
       ALLOWED_GROUPS   = join(",", var.allowed_groups)
       ALLOWED_SERVICES = join(",", var.allowed_services)
+      HISTORY_ENTITIES = join(",", var.history_entities)
       IOT_ENDPOINT     = data.aws_iot_endpoint.this.endpoint_address
       API_VERSION      = "0.1.0"
     }
