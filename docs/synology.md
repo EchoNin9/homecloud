@@ -163,8 +163,10 @@ badge when one isn't `running` or is `unhealthy`. It needs `sensor` in `BRIDGE_A
 
 Only compose containers (any project) are reported, so a one-off `docker run` doesn't raise a false alarm.
 HA keeps a removed container's last state until HA restarts, so a deleted container can leave a stale
-**Service down** badge. Clear it with `sudo docker compose restart homeassistant`: the monitor re-sends the
-live containers within 60 s.
+**Service down** badge. Clear it in two places:
+1. HA: `sudo docker compose restart homeassistant`. The monitor re-sends the live containers within 60 s.
+2. Cloud: the stored copy isn't deleted by an HA restart (snapshots only add), so delete it once:
+   `aws dynamodb delete-item --table-name homecloud-state --key '{"PK":{"S":"HOME#<home_id>"},"SK":{"S":"ENTITY#sensor.docker_<name>"}}'`
 
 ## 10. Upgrading
 
@@ -245,7 +247,7 @@ Each of these has broken this stack at least once. Add new ones here when you hi
 | Mosquitto exits | Missing or wrongly-owned `passwd` file (step 3), see `docker logs`. |
 | Mosquitto logs `Error saving in-memory database ... Permission denied` | `mosquitto/data` not writable by UID 1883 (see Synology gotchas). |
 | `sudo: docker: command not found` | Use `/usr/local/bin/docker` (see Synology gotchas). |
-| **Service down** badge for a container that no longer exists | HA keeps the last state of a removed container. `sudo docker compose restart homeassistant` (see §9). |
+| **Service down** badge for a container that no longer exists | HA and the cloud both keep the last state of a removed container. Restart HA and delete the cloud item (see §9). |
 | Container sensors or update tiles show `unavailable` after a recreate | WUD re-adds recreated containers on its next scan (06:00), or `docker compose restart wud`. |
 | Zigbee device not found | `ls /dev/tty*` on the NAS; driver not loaded (step 6); container needs the device path in `.env`. |
 | Ports 8123 / 1883 busy | Another package uses them; Home Assistant on host networking cannot change port without editing HA's `http:` config. |
