@@ -6,6 +6,9 @@ Everything is outbound-only; open no ports on your router.
 Requirements: DSM 7.2+, **Container Manager** (Package Center), an x86_64 or arm64 NAS, SSH enabled
 (Control Panel -> Terminal & SNMP) for the one-off steps below.
 
+> **Read [Synology gotchas](#synology-gotchas) before you start.** DSM differs from a plain Linux Docker host
+> in ways that break containers silently, especially file permissions.
+
 ## 1. Folders
 
 ```sh
@@ -49,7 +52,8 @@ only, so it is reachable from HA (host network) and Zigbee2MQTT but not from the
 ## 4. Configure and start
 
 1. Copy `.env.example` to `.env` next to `docker-compose.yml` and fill it in (`HOME_ID`, `IOT_ENDPOINT`,
-   `IOT_THING_NAME`, `DATA_ROOT`, `TZ`). Leave `HA_TOKEN` for step 5.
+   `IOT_THING_NAME`, `DATA_ROOT`, `TZ`). `TZ` is an IANA name (e.g. `America/Vancouver`). Keep it
+   consistent with `history_utc_offset_hours` in the cloud tfvars (docs/first-deploy.md step 0). Leave `HA_TOKEN` for step 5.
 2. Container Manager -> **Project** -> **Create**. Name `homecloud`, path
    `/volume1/docker/homecloud/stack`, source **Use existing docker-compose.yml**. Container Manager
    picks up the `.env` in the same folder. Don't start the project yet (or accept that `bridge` will
@@ -182,6 +186,46 @@ Upgrading, from the stack folder (take a backup first: `sudo docker compose exec
 
 Then `sudo docker image prune -f`. To roll back, put the old tag back, and restore the backup if the config changed.
 
+## Synology gotchas
+
+Each of these has broken this stack at least once. Add new ones here when you hit them.
+
+**Permissions (the most common failure)**
+- **Shared folders carry Synology ACLs, which override Unix modes.** `umask 077` and `chmod` on
+  the parent folder don't protect new files. Files can come out world-readable, and folders
+  read-only to everyone (`dr-xr-xr-x+`, where `+` means an ACL), even after a `chown`. Always
+  `chown` **and** `chmod` explicitly, then check with `ls -ln`:
+  - Mosquitto runs as UID **1883**: `chown -R 1883:1883 mosquitto/data && chmod 755 mosquitto/data`.
+    If not, it runs fine but logs `Error saving in-memory database ... Permission denied`, and
+    retained messages and sessions are lost on every restart.
+  - Mosquitto's `passwd` must be owned by **1883** with mode 600. Mosquitto reloads it on `HUP`
+    after dropping root, and newer versions refuse a file not owned by `mosquitto`.
+  - The bridge runs as UID **10001** with a read-only root filesystem: `chown -R 10001:10001 bridge/certs`,
+    `chmod 700` the folder, `chmod 600 private.key`.
+  - Backup archives hold the IoT key and the HA token. `backup.sh` runs `chmod 600` on each archive
+    because the ACL ignores the umask.
+- If you edit `passwd` with a throwaway `eclipse-mosquitto` container, re-apply `chown 1883:1883`
+  and `chmod 600` afterwards. The rewrite can reset ownership.
+
+**Docker on DSM**
+- The `docker` CLI is `/usr/local/bin/docker`, which isn't on `sudo`'s PATH. `sudo docker` gives
+  "command not found". Use `sudo /usr/local/bin/docker ...` or add it to `secure_path`.
+- Container Manager's UI ignores compose **profiles**. Start `adguard` and `zigbee` with
+  `docker compose --profile <name> up -d` over SSH.
+- DSM's Docker engine is old (24.x, API 1.43). Newer CLI images (`docker:27-cli`) negotiate down
+  automatically. Plain `docker compose ps --format` templates with tabs can fail to parse, so use
+  `docker ps --format`.
+- `scp` to DSM needs `-O` (legacy protocol) unless the SFTP server is enabled.
+
+**Networking**
+- **DSM's DNS Server package owns port 53 on every NAS address**, including the Docker bridges.
+  Anything else that serves DNS needs its own IP (macvlan, see section 8) or has to replace DSM DNS.
+- A macvlan container can't reach the IP of its own parent NIC, and the NAS can't reach the
+  container. Put macvlan on a **spare** NIC so the container can still reach services on the
+  main one.
+- Home Assistant and the bridge use `network_mode: host`. Mosquitto is published only on
+  `127.0.0.1`, so containers on bridge networks can't reach it unless you change that.
+
 ## Troubleshooting
 
 | Symptom | Check |
@@ -194,5 +238,8 @@ Then `sudo docker image prune -f`. To roll back, put the old tag back, and resto
 | Commands come back `not_allowed` | The service is not in `BRIDGE_ALLOWED_SERVICES`, or the entity is excluded / outside the allowed domains. |
 | Commands come back `stale` | NAS clock skew over 60 s (or 10 s ahead of the cloud). Fix NTP. |
 | Mosquitto exits | Missing or wrongly-owned `passwd` file (step 3), see `docker logs`. |
+| Mosquitto logs `Error saving in-memory database ... Permission denied` | `mosquitto/data` not writable by UID 1883 (see Synology gotchas). |
+| `sudo: docker: command not found` | Use `/usr/local/bin/docker` (see Synology gotchas). |
+| Container sensors or update tiles show `unavailable` after a recreate | WUD re-adds recreated containers on its next scan (06:00), or `docker compose restart wud`. |
 | Zigbee device not found | `ls /dev/tty*` on the NAS; driver not loaded (step 6); container needs the device path in `.env`. |
 | Ports 8123 / 1883 busy | Another package uses them; Home Assistant on host networking cannot change port without editing HA's `http:` config. |

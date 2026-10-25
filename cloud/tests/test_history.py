@@ -1,4 +1,5 @@
 import datetime as dt
+import json
 
 from conftest import _load, iot_event
 
@@ -30,3 +31,49 @@ def test_ingest_writes_raw_history_then_rollup_builds_day(ingest, table, monkeyp
     assert rollup.handler()["rollups"] >= 1
     day = table.get_item(Key={"PK": "HIST#home1#light.a", "SK": f"D#{yday.isoformat()}"})["Item"]
     assert day["dur"] == {"off": 18 * 3600, "on": 6 * 3600} and day["n"] == 3 and day["ttl"] > 0
+
+
+def test_history_api_empty_raw_and_day(api, table, monkeypatch):
+    from conftest import api_event
+    monkeypatch.setenv("HISTORY_ENTITIES", "light.*")
+    q = lambda path, **qs: json.loads(api.handler(api_event("GET", path, query=qs or None))["body"])
+    # First deploy / untracked: 200 with nothing, never a 404.
+    empty = q("/v1/homes/home1/history/light.a")
+    assert empty["points"] == [] and empty["prev"] is None and empty["res"] == "raw"
+
+    put = lambda sk, **kw: table.put_item(Item={"PK": "HIST#home1#light.a", "SK": sk, **kw})
+    put("R#2026-10-01T00:00:00+00:00", state="on")
+    put("R#2026-10-02T12:00:00+00:00", state="off")
+    put("D#2026-10-01", dur={"on": 86400}, n=1)
+    frm = int(dt.datetime(2026, 10, 2, tzinfo=UTC).timestamp() * 1000)
+    raw = q("/v1/homes/home1/history/light.a", **{"from": str(frm), "to": str(frm + 86_400_000)})
+    assert raw["prev"] == {"t": "2026-10-01T00:00:00+00:00", "state": "on"}
+    assert raw["points"] == [{"t": "2026-10-02T12:00:00+00:00", "state": "off"}]
+    day = q("/v1/homes/home1/history/light.a", res="day", **{"from": str(frm - 5 * 86_400_000), "to": str(frm)})
+    assert day["points"] == [{"date": "2026-10-01", "dur": {"on": 86400}, "n": 1}]
+    assert q("/v1/homes/home1/entities")["historyEntities"] == ["light.*"]
+    assert api.handler(api_event("GET", "/v1/homes/home1/history/light.a", query={"res": "week"}))["statusCode"] == 400
+    assert api.handler(api_event("GET", "/v1/homes/home1/history/light.a", query={"from": "9", "to": "1"}))["statusCode"] == 400
+
+
+def test_rollup_splits_days_at_fixed_local_offset(ingest, table, monkeypatch):
+    monkeypatch.setenv("HISTORY_ENTITIES", "light.*")
+    monkeypatch.setenv("HISTORY_UTC_OFFSET_HOURS", "-7")
+    tz = dt.timezone(dt.timedelta(hours=-7))
+    yday = dt.datetime.now(tz).date() - dt.timedelta(days=1)
+    # Local times; stored as UTC like HA does. 23:00 local is 06:00 UTC the next UTC day.
+    at = lambda h: dt.datetime.combine(yday, dt.time(h), tz).astimezone(UTC).isoformat()
+    for h, st in [(0, "off"), (20, "on"), (23, "off")]:
+        ingest.handler(iot_event("home1", "state", {"v": 1, "ts": 1, "entities": [
+            {"entity_id": "light.a", "state": st, "last_changed": at(h)}]}))
+    rollup = _load("rollup_handler", "rollup/handler.py")
+    rollup.handler()
+    day = table.get_item(Key={"PK": "HIST#home1#light.a", "SK": f"D#{yday.isoformat()}"})["Item"]
+    assert day["dur"] == {"off": 21 * 3600, "on": 3 * 3600} and day["n"] == 3
+
+    api = _load("api_handler", "api/handler.py")
+    from conftest import api_event
+    end = int(dt.datetime.combine(yday, dt.time(23), tz).timestamp() * 1000)
+    body = json.loads(api.handler(api_event("GET", "/v1/homes/home1/history/light.a",
+                                            query={"res": "day", "from": str(end - 3_600_000), "to": str(end)}))["body"])
+    assert [p["date"] for p in body["points"]] == [yday.isoformat()]

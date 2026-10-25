@@ -23,6 +23,44 @@ export interface Entity {
 export interface EntityList {
   entities: Entity[];
   updatedTs?: number;
+  /** history_entities globs (`*` wildcards): entities that can have history. */
+  historyEntities?: string[];
+}
+
+export type HistoryRes = 'raw' | 'day';
+
+export interface RawPoint {
+  /** ISO time of the state change. */
+  t: string;
+  state: string | null;
+}
+
+export interface DayPoint {
+  /** YYYY-MM-DD (the home's history day, see contract.md). Numeric entities carry min/max/avg; others carry dur (state -> seconds). */
+  date: string;
+  min?: number;
+  max?: number;
+  avg?: number;
+  dur?: Record<string, number>;
+  n: number;
+}
+
+export interface History<R extends HistoryRes = HistoryRes> {
+  entityId: string;
+  res: R;
+  from: number;
+  to: number;
+  /** Last change before `from` (raw only), or null. */
+  prev: RawPoint | null;
+  /** Empty when there is no history yet: that is not an error. */
+  points: R extends 'raw' ? RawPoint[] : DayPoint[];
+}
+
+export interface HistoryOptions {
+  res?: HistoryRes;
+  /** Epoch ms. */
+  from?: number;
+  to?: number;
 }
 
 export interface CommandRequest {

@@ -49,6 +49,7 @@ locals {
     "GET /v1/homes/{homeId}/entities/{entityId}" = true
     "POST /v1/homes/{homeId}/commands"           = true
     "GET /v1/homes/{homeId}/commands/{id}"       = true
+    "GET /v1/homes/{homeId}/history/{entityId}"  = true
   }
 }
 

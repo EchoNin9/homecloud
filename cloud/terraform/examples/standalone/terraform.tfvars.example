@@ -7,3 +7,7 @@ home_ids = ["home"]
 device_csr_files = {
   home = "./certs/home.csr"
 }
+
+# SET THIS: your home's UTC offset in whole hours (e.g. -7 for Vancouver, 1 for Paris in winter).
+# Daily history summaries split at this local midnight. A fixed offset with no DST; see docs/first-deploy.md step 0.
+history_utc_offset_hours = 0

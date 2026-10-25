@@ -14,6 +14,13 @@ Time: about 1–2 hours. Commands assume the repo root unless a `cd` says otherw
       for the scripts.
 - [ ] Node 20+ and npm, and `jq`.
 - [ ] Synology DSM 7.2+ with Container Manager installed and SSH enabled.
+- [ ] Your home's **time zone**, in two forms. You'll need both:
+      - the IANA name (e.g. `America/Vancouver`), for `TZ` in the NAS `.env`;
+      - its UTC offset in whole hours (e.g. `-7`), for `history_utc_offset_hours` in `terraform.tfvars`.
+        Daily history summaries split at that local midnight.
+
+      The offset is fixed, with no DST. If your zone changes its clocks, pick the offset you're on
+      most of the year. Summaries then split an hour off local midnight for the rest of the year.
 - [ ] Home Assistant isn't running yet, or you'll move an existing install into
       `/volume1/docker/homecloud/homeassistant`.
 
@@ -65,7 +72,7 @@ Copy **only** `home.csr` to your deploy machine, at
 ```sh
 cd cloud/terraform/examples/standalone
 cp backend.hcl.example backend.hcl            # paste the backend_hcl output from step 1
-cp terraform.tfvars.example terraform.tfvars  # region, home_ids, device_csr_files
+cp terraform.tfvars.example terraform.tfvars  # region, home_ids, device_csr_files, history_utc_offset_hours
 tofu init -backend-config=backend.hcl
 tofu plan -out=plan.bin                       # look it over: ~40 resources, nothing destroyed
 tofu apply plan.bin
@@ -189,7 +196,8 @@ certificate, the DynamoDB table or the user pool.
 
 **History:** the module keeps history for entities matching `history_entities` (globs, with
 defaults for drive temps, doors, lights, `sun.sun` and NAS containers). Set it to `[]` to turn
-history off. A daily `homecloud-rollup` Lambda runs at 00:15 UTC. Smoke test after a day:
+history off. Daily summaries split at local midnight for `history_utc_offset_hours` (a fixed offset, no DST,
+default 0 = UTC). A daily `homecloud-rollup` Lambda runs at 00:15 local. Smoke test after a day:
 `aws lambda invoke --function-name homecloud-rollup /dev/stdout` returns `"rollups": N` with N > 0.
 
 ## Troubleshooting

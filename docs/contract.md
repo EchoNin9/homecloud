@@ -116,7 +116,9 @@ An entity is tracked when its id matches one of the module's `history_entities` 
 | `HIST#{homeId}#{entity_id}` | `D#{YYYY-MM-DD}` | Numeric: `min`, `max`, `avg` (time-weighted). Otherwise: `dur` (map of state → seconds). Both have `n` (changes that day) and `ttl` (15 months) |
 
 - `R#` items are keyed by `last_changed`, so attribute-only updates rewrite the same item.
-- A daily rollup job writes `D#` items for each of the last 3 **UTC** days. A missed run
+- A daily rollup job writes `D#` items for each of the last 3 **local** days. Local means the
+  module's fixed `history_utc_offset_hours` (no DST, default 0 = UTC), and `D#` dates and the
+  history API's day bounds both use it. A missed run
   heals on the next one.
 - A day's rollup opens with the last raw state from before midnight (or the `ENTITY#` item
   if no raw state is older). History starts when this is first deployed.
@@ -145,7 +147,8 @@ These are ordinary entities to the bridge and the cloud.
 |---|---|
 | `GET /v1/health` | `{"ok": true, "version": "..."}` (no auth) |
 | `GET /v1/homes` | `{"homes": [{"homeId","online","lastSeenTs"}]}` |
-| `GET /v1/homes/{homeId}/entities?domain=light` | `{"entities": [Entity], "updatedTs"}` |
+| `GET /v1/homes/{homeId}/entities?domain=light` | `{"entities": [Entity], "updatedTs", "historyEntities": [glob]}` |
+| `GET /v1/homes/{homeId}/history/{entityId}?res=raw\|day&from=&to=` | `History` (below) |
 | `GET /v1/homes/{homeId}/entities/{entityId}` | `Entity`, or 404 |
 | `POST /v1/homes/{homeId}/commands` body `{domain, service, target, data?}` | `202 {"id","status":"pending"}` |
 | `GET /v1/homes/{homeId}/commands/{id}` | `{"id","status","error"}` |
@@ -154,6 +157,28 @@ Authorization: the caller's `cognito:groups` claim must intersect the module's
 `allowed_groups` (default `["admin"]`), or the API returns 403. The API also checks the
 service allowlist server-side (`allowed_services`) before publishing, so the bridge's
 check is a second layer. Errors are returned as `{"error": "<code>", "message": "..."}`.
+
+### History
+
+`from` and `to` are epoch ms. `to` defaults to now. `from` defaults to 24 h before `to` for
+`res=raw` (max span 35 days) and 30 days before for `res=day` (max span 470 days).
+
+```json
+{"entityId": "light.kitchen", "res": "raw", "from": 1760000000000, "to": 1760086400000,
+ "prev": {"t": "2026-10-23T23:10:00+00:00", "state": "off"},
+ "points": [{"t": "2026-10-24T06:00:00+00:00", "state": "on"}]}
+```
+
+- `res=raw`: `points` holds state changes in `[from, to]`, oldest first, capped at 5000. `prev` is
+  the last change before `from`, or `null`. It gives the state at the left edge of a chart.
+- `res=day`: `points` holds daily rollups `{"date", "min", "max", "avg", "n"}` (numeric) or
+  `{"date", "dur", "n"}`. `prev` is always `null`.
+- An entity with no history (untracked, or tracked but not yet changed) returns `points: []`
+  and `prev: null`, **not** 404. Clients must render that as "no history yet". The web client first
+  fills a quiet raw window from the entity's own `state`/`last_changed`, when that predates the
+  window end.
+- `historyEntities` on the entities list is the `history_entities` globs (fnmatch, `*` only).
+  Clients use it to offer history only where it can exist.
 
 ## Clarifications (v1)
 
@@ -175,6 +200,4 @@ work is described in [mobile.md](mobile.md).
 - MQTT `homecloud/{homeId}/event` (bridge → cloud): user-facing events that trigger push notifications.
 - `POST /v1/devices` and `DELETE /v1/devices/{deviceId}`: register and unregister push tokens.
 - `GET /v1/homes/{homeId}/summary`: entities plus home status in one call.
-- `GET /v1/homes/{homeId}/history/{entityId}?from=&to=&res=raw|day`: returns `R#`/`D#` items
-  (additive, so it can ship in `/v1` once the dashboard charts need it).
 - WebSocket route `$connect?homeId=` for live state updates.

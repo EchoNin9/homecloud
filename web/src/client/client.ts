@@ -10,6 +10,8 @@ import type {
   HomeCloudClientOptions,
   ListEntitiesOptions,
   WaitForCommandOptions,
+  History,
+  HistoryOptions,
 } from './types';
 
 const enc = encodeURIComponent;
@@ -41,6 +43,15 @@ export class HomeCloudClient {
 
   getEntity(homeId: string, entityId: string): Promise<Entity> {
     return this.request<Entity>('GET', `/v1/homes/${enc(homeId)}/entities/${enc(entityId)}`);
+  }
+
+  getHistory(homeId: string, entityId: string, opts: HistoryOptions = {}): Promise<History> {
+    // No URLSearchParams: React Native's implementation is incomplete and this client is shared with the app.
+    const qs = (['res', 'from', 'to'] as const)
+      .filter((k) => opts[k] !== undefined)
+      .map((k) => `${k}=${enc(String(opts[k]))}`)
+      .join('&');
+    return this.request<History>('GET', `/v1/homes/${enc(homeId)}/history/${enc(entityId)}${qs ? `?${qs}` : ''}`);
   }
 
   sendCommand(homeId: string, cmd: CommandRequest): Promise<CommandAccepted> {

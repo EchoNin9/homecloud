@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { Entity, Home, HomeCloudClient } from '../client';
 import { EntityCard, type Action } from './EntityCard';
+import { HistoryDialog } from './HistoryDialog';
+import { isTracked } from './history';
 import { usePoll } from './usePoll';
 import { DEFAULT_PREFS, MAX_QUERIES, domainOf, errorMessage, formatLastSeen, organize, saveQuery, sunTimes, updateInfo, warnings, type ViewPrefs } from './util';
 import './dashboard.css';
@@ -104,6 +106,8 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
   const [homes, setHomes] = useState<Home[] | null>(null);
   const [selected, setSelected] = useState<string | undefined>(pinnedHome);
   const [entities, setEntities] = useState<Entity[] | null>(null);
+  const [historyGlobs, setHistoryGlobs] = useState<string[]>([]);
+  const [historyFor, setHistoryFor] = useState<Entity | null>(null);
   const [patches, setPatches] = useState<Record<string, Patch>>({});
   const [busy, setBusy] = useState<Record<string, number>>({});
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -134,7 +138,10 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
       if (id !== selectedRef.current) setSelected(id);
       if (!id) return;
       const r = await client.listEntities(id);
-      if (id === (pinnedHome ?? selectedRef.current ?? id)) setEntities(r.entities);
+      if (id === (pinnedHome ?? selectedRef.current ?? id)) {
+        setEntities(r.entities);
+        setHistoryGlobs(r.historyEntities ?? []); // absent on older APIs: no history buttons
+      }
     },
     `${pinnedHome ?? selected ?? ''}`,
     pollMs,
@@ -537,6 +544,7 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
                   groupNames={groupNames}
                   inGroups={groupNames.filter((g) => prefs.groups[g].includes(e.entity_id))}
                   onToggleGroup={(g) => setPrefs({ groups: toggleInGroup(prefs.groups, g, e.entity_id) })}
+                  onHistory={isTracked(e.entity_id, historyGlobs) ? () => setHistoryFor(e) : undefined}
                 />
               ))}
             </ul>
@@ -574,6 +582,7 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
         </div>
       )}
 
+      {historyFor && selected && <HistoryDialog client={client} homeId={selected} entity={historyFor} onClose={() => setHistoryFor(null)} />}
       {updateFor && <UpdateDialog entity={updateFor} onClose={() => setUpdateFor(null)} />}
 
       <div className="hc-toasts" role="region" aria-label="Notifications" aria-live="assertive">

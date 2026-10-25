@@ -1,6 +1,6 @@
 """Daily history rollups (EventBridge, once a day). Item shapes: contract.md "History".
 
-Re-rolls the last DAYS_BACK UTC days every run, so it is idempotent and a missed run heals.
+Re-rolls the last DAYS_BACK local days (hc.history_tz()) every run, so it is idempotent and a missed run heals.
 """
 import datetime as dt
 import math
@@ -59,10 +59,16 @@ def _query(table, **kw):
         kw["ExclusiveStartKey"] = page["LastEvaluatedKey"]
 
 
-def _samples(table, pk, entity, day, end):
-    """Raw states during `day`, the last one before it, and the current ENTITY state."""
-    # "R#2026-10-24" sorts before every "R#2026-10-24T..." key, so these bounds split days.
-    lo, hi = f"R#{day.isoformat()}", f"R#{(day + dt.timedelta(days=1)).isoformat()}"
+def _rkey(ts):
+    """Raw keys are HA's last_changed: UTC ISO, e.g. 2026-10-24T07:00:00.123+00:00."""
+    return "R#" + dt.datetime.fromtimestamp(ts, UTC).isoformat()
+
+
+def _samples(table, pk, entity, start, end):
+    """Raw states in [start, end], the last one before it, and the current ENTITY state."""
+    # A whole-second bound sorts before same-second keys with a fraction ('+' < '.'), so a change
+    # in the first second after midnight lands in the new day; duplicates collapse by timestamp.
+    lo, hi = _rkey(start), _rkey(end)
     rows = list(_query(table, KeyConditionExpression=Key("PK").eq(pk) & Key("SK").between("R#", lo),
                        ScanIndexForward=False, Limit=1))
     rows += _query(table, KeyConditionExpression=Key("PK").eq(pk) & Key("SK").between(lo, hi))
@@ -74,7 +80,8 @@ def _samples(table, pk, entity, day, end):
 def handler(event=None, context=None):
     table = boto3.resource("dynamodb").Table(os.environ["TABLE_NAME"])
     globs = hc.csv_env(os.environ.get("HISTORY_ENTITIES"))
-    today = dt.datetime.now(UTC).date()
+    tz = hc.history_tz()
+    today = dt.datetime.now(tz).date()
     ttl = hc.now_ms() // 1000 + hc.HIST_DAY_TTL_SECONDS
     out = []
     for home in hc.csv_env(os.environ.get("HOME_IDS")):
@@ -85,8 +92,8 @@ def handler(event=None, context=None):
             pk = f"HIST#{home}#{ent['entity_id']}"
             for back in range(1, DAYS_BACK + 1):
                 day = today - dt.timedelta(days=back)
-                start = dt.datetime.combine(day, dt.time(), UTC).timestamp()
-                r = summarize(_samples(table, pk, ent, day, start + 86400), start, start + 86400)
+                start = dt.datetime.combine(day, dt.time(), tz).timestamp()
+                r = summarize(_samples(table, pk, ent, start, start + 86400), start, start + 86400)
                 if r:
                     out.append({"PK": pk, "SK": f"D#{day.isoformat()}", **r, "ttl": ttl})
     hc.put_items(table, out)

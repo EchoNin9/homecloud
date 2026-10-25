@@ -5,8 +5,10 @@ below. Those are the single choke point that converts floats to Decimal(str(v)),
 because boto3's serializer raises TypeError on a raw float (and MagicMock tests
 never notice).
 """
+import datetime as dt
 import json
 import math
+import os
 import re
 import secrets
 import time
@@ -114,6 +116,15 @@ def dumps(obj):
 
 def csv_env(value):
     return [x.strip() for x in (value or "").split(",") if x.strip()]
+
+
+def history_tz():
+    """Fixed-offset zone that daily history rollups split on (HISTORY_UTC_OFFSET_HOURS, default 0).
+
+    ponytail: a fixed offset, no DST. Fine for zones that don't shift (or users who accept an
+    hour of drift); switch to zoneinfo names if a DST home ever needs exact local days.
+    """
+    return dt.timezone(dt.timedelta(hours=int(os.environ.get("HISTORY_UTC_OFFSET_HOURS") or 0)))
 
 
 def is_tracked(entity_id, globs):
