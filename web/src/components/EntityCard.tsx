@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { Entity } from '../client';
+import { fromHex, kelvinToRgb, rgbOf, toHex } from './color';
 import { Icon, entityIcon, iconTone } from './icons';
 import { domainOf, friendlyName, stateText } from './util';
 
@@ -36,6 +37,17 @@ export const hasBrightness = (e: Entity) => {
   const modes = e.attributes.supported_color_modes;
   return domainOf(e.entity_id) === 'light' && (num(e.attributes.brightness) !== undefined || (Array.isArray(modes) && modes.some((m) => m !== 'onoff')));
 };
+
+const COLOR_MODES = ['hs', 'xy', 'rgb', 'rgbw', 'rgbww'];
+const colorModes = (e: Entity): string[] => (Array.isArray(e.attributes.supported_color_modes) ? e.attributes.supported_color_modes.map(String) : []);
+export const hasColor = (e: Entity) => domainOf(e.entity_id) === 'light' && colorModes(e).some((m) => COLOR_MODES.includes(m));
+export const hasColorTemp = (e: Entity) => domainOf(e.entity_id) === 'light' && colorModes(e).includes('color_temp');
+
+/** Icon props that tint an on light with its current colour (HA does the same). */
+export function lightTint(e: Entity): { 'data-tinted'?: true; style?: React.CSSProperties } {
+  const rgb = domainOf(e.entity_id) === 'light' && e.state === 'on' ? rgbOf(e.attributes) : undefined;
+  return rgb ? { 'data-tinted': true, style: { '--hc-light': toHex(rgb) } as React.CSSProperties } : {};
+}
 
 /** Debounced value commit: returns [draft, setDraft]; calls commit(draft) `delay` ms after the last change. */
 function useDraft<T>(commit: (v: T) => void, delay = 400) {
@@ -85,6 +97,56 @@ export function Brightness({ entity, disabled, onAction }: { entity: Entity; dis
       disabled={disabled}
       aria-label={`${friendlyName(entity)} brightness`}
       aria-valuetext={`${shown}%`}
+      onChange={(ev) => setDraft(Number(ev.target.value))}
+    />
+  );
+}
+
+/** Native colour picker; sends `rgb_color`. */
+export function LightColor({ entity, disabled, onAction }: { entity: Entity; disabled: boolean; onAction: OnAction }) {
+  const [draft, setDraft] = useDraft<string>((hex) => {
+    const rgb = fromHex(hex);
+    onAction(entity, { service: 'turn_on', data: { rgb_color: rgb }, patch: { state: 'on', attributes: { rgb_color: rgb } }, label: 'set colour' });
+  });
+  return (
+    <input
+      type="color"
+      className="hc-color"
+      value={draft ?? toHex(rgbOf(entity.attributes) ?? [255, 255, 255])}
+      disabled={disabled}
+      aria-label={`${friendlyName(entity)} colour`}
+      title="Colour"
+      onChange={(ev) => setDraft(ev.target.value)}
+    />
+  );
+}
+
+/** White-temperature slider, warm (left) to cool (right); sends `color_temp_kelvin`. */
+export function ColorTemp({ entity, disabled, onAction }: { entity: Entity; disabled: boolean; onAction: OnAction }) {
+  const a = entity.attributes;
+  const min = num(a.min_color_temp_kelvin) ?? 2000;
+  const max = num(a.max_color_temp_kelvin) ?? 6500;
+  const [draft, setDraft] = useDraft<number>((k) =>
+    onAction(entity, {
+      service: 'turn_on',
+      data: { color_temp_kelvin: k },
+      patch: { state: 'on', attributes: { color_temp_kelvin: k, rgb_color: kelvinToRgb(k) } },
+      label: 'set colour temperature',
+    }),
+  );
+  const shown = draft ?? num(a.color_temp_kelvin) ?? Math.round((min + max) / 2);
+  return (
+    <input
+      type="range"
+      className="hc-range hc-range-temp"
+      style={{ '--hc-warm': toHex(kelvinToRgb(min)), '--hc-cool': toHex(kelvinToRgb(max)) } as React.CSSProperties}
+      min={min}
+      max={max}
+      step={50}
+      value={Math.min(max, Math.max(min, shown))}
+      disabled={disabled}
+      aria-label={`${friendlyName(entity)} colour temperature`}
+      aria-valuetext={`${shown} K`}
       onChange={(ev) => setDraft(Number(ev.target.value))}
     />
   );
@@ -142,7 +204,7 @@ export function EntityCard({ entity, disabled, busy, onAction, onOpen, hidden, s
   const tone = iconTone(entity);
   const d = domainOf(entity.entity_id);
   const icon = (
-    <span className="hc-tile-icon" data-tone={tone || undefined} data-busy={busy || undefined}>
+    <span className="hc-tile-icon" data-tone={tone || undefined} data-busy={busy || undefined} {...lightTint(entity)}>
       <Icon path={entityIcon(entity)} />
     </span>
   );
