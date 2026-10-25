@@ -52,7 +52,8 @@ only, so it is reachable from HA (host network) and Zigbee2MQTT but not from the
 ## 4. Configure and start
 
 1. Copy `.env.example` to `.env` next to `docker-compose.yml` and fill it in (`HOME_ID`, `IOT_ENDPOINT`,
-   `IOT_THING_NAME`, `DATA_ROOT`, `TZ`). Leave `HA_TOKEN` for step 5.
+   `IOT_THING_NAME`, `DATA_ROOT`, `TZ`). `TZ` is an IANA name (e.g. `America/Vancouver`). Keep it
+   consistent with `history_utc_offset_hours` in the cloud tfvars (docs/first-deploy.md step 0). Leave `HA_TOKEN` for step 5.
 2. Container Manager -> **Project** -> **Create**. Name `homecloud`, path
    `/volume1/docker/homecloud/stack`, source **Use existing docker-compose.yml**. Container Manager
    picks up the `.env` in the same folder. Don't start the project yet (or accept that `bridge` will
