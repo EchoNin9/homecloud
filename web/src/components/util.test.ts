@@ -170,3 +170,13 @@ describe('stateText', () => {
     expect(stateText(ent('switch.s', 'unavailable'))).toBe('Unavailable');
   });
 });
+
+describe('organize: one group on its own', () => {
+  it('shows only that group, favourites included, no Ungrouped', () => {
+    const ents = [e('light.a', 'A'), e('light.b', 'B'), e('light.c', 'C')];
+    const p = { ...DEFAULT_PREFS, group: 'custom' as const, groups: { Bed: ['light.a', 'light.b'] }, favs: ['light.a'] };
+    expect(organize(ents, '', { ...p, only: 'Bed' }).map(([k, , l]) => [k, l.map((x) => x.entity_id)])).toEqual([['grp:Bed', ['light.a', 'light.b']]]);
+    expect(organize(ents, '', { ...p, only: 'Gone' })).toEqual([]);
+    expect(organize(ents, '', p).map(([k]) => k)).toEqual(['_fav', 'grp:Bed', 'grp:']);
+  });
+});

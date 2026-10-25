@@ -162,6 +162,7 @@ badge when one isn't `running` or is `unhealthy`. It needs `sensor` in `BRIDGE_A
 (it is by default).
 
 Only compose containers (any project) are reported, so a one-off `docker run` doesn't raise a false alarm.
+Compose's temporary `<12 hex>_<name>` copy made during a recreate is skipped too.
 HA keeps a removed container's last state until HA restarts, so a deleted container can leave a stale
 **Service down** badge. Clear it in two places:
 1. HA: `sudo docker compose restart homeassistant`. The monitor re-sends the live containers within 60 s.
