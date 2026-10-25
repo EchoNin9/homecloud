@@ -235,6 +235,21 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
     } else setQueryMsg(`Limit is ${MAX_QUERIES}. Delete one first.`);
   };
   const closeNav = useCallback(() => setNavOpen(false), []);
+  // Sidebar section jumps put the heading at the top, even near the end of the page: a section that
+  // ends less than a screen from the bottom gets just enough temporary space below the last tile.
+  const mainRef = useRef<HTMLElement>(null);
+  const clearJumpSpace = () => mainRef.current?.style.removeProperty('padding-bottom');
+  const jumpTo = (id: string) => {
+    const el = document.getElementById(id);
+    const main = mainRef.current;
+    if (!el || !main) return;
+    clearJumpSpace();
+    const margin = parseFloat(getComputedStyle(el).scrollMarginTop) || 0;
+    const target = el.getBoundingClientRect().top + window.scrollY - margin;
+    const short = target + window.innerHeight - document.documentElement.scrollHeight;
+    if (short > 0) main.style.paddingBottom = `${parseFloat(getComputedStyle(main).paddingBottom) + short}px`;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
   /** Results bar: turn the current search into a live group named after it, and open it. */
   const saveAsGroup = () => {
     const q = filter.trim();
@@ -284,17 +299,19 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
         onView={(v) => {
           setPrefs({ group: v.group, sort: v.sort, only: '' });
           closeNav();
+          clearJumpSpace();
           window.scrollTo({ top: 0 });
         }}
         sections={groups.map(([key, title, list]): [string, string, number] => [sectionId(key), title, list.length])}
         onJump={(id) => {
           closeNav();
-          document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          jumpTo(id);
         }}
         groups={groupNames.map((g): [string, number] => [g, groupIds(g, entities ?? [], prefs).size])}
         onOpenGroup={(g) => {
           setPrefs({ group: 'custom', sort: 'name', only: g });
           closeNav();
+          clearJumpSpace();
           window.scrollTo({ top: 0 });
         }}
         onRenameGroup={(from, to) => {
@@ -322,7 +339,7 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
         onSignOut={onSignOut}
       />
 
-      <main className="hc-main">
+      <main className="hc-main" ref={mainRef}>
         <header className="hc-toolbar">
           <button type="button" className="hc-icon-btn hc-menu-btn" aria-label="Open navigation" aria-expanded={navOpen} aria-controls={navId} onClick={() => setNavOpen(true)}>
             <Icon path={mdiMenu} />
