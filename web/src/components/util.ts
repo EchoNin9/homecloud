@@ -1,6 +1,9 @@
 import type { Entity } from '../client';
 import { moonPhase, phaseName } from './astro';
 
+// On DSM the CLI isn't on sudo's PATH (docs/synology.md, Synology gotchas), so the copied commands use the full path.
+const DOCKER = 'sudo /usr/local/bin/docker';
+
 export const domainOf = (entityId: string): string => entityId.split('.')[0] ?? '';
 
 export function friendlyName(e: Entity): string {
@@ -222,8 +225,8 @@ export function updateInfo(e: Entity): UpdateInfo {
   const steps = !container
     ? []
     : digest
-    ? [`sudo docker compose pull ${service}`, `sudo docker compose up -d ${service}`]
-    : [`sudo docker compose up -d ${service}`];
+    ? [`${DOCKER} compose pull ${service}`, `${DOCKER} compose up -d ${service}`]
+    : [`${DOCKER} compose up -d ${service}`];
   return { container, service, from, to, digest, url: typeof a.release_url === 'string' ? a.release_url : null, steps };
 }
 
