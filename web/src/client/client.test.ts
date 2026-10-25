@@ -25,6 +25,16 @@ function setup(responder: (url: string, init: RequestInit) => Response | Promise
 const hdr = (c: Call, k: string) => (c.init.headers as Record<string, string>)[k];
 
 describe('URL building and headers', () => {
+  it('getHistory builds the query without URLSearchParams', async () => {
+    const { client, calls } = setup(() => json({ entityId: 'sun.sun', res: 'day', from: 1, to: 2, prev: null, points: [] }));
+    await client.getHistory('h1', 'sun.sun', { res: 'day', from: 1, to: 2 });
+    await client.getHistory('h1', 'sun.sun');
+    expect(calls.map((c) => c.url)).toEqual([
+      'https://api.example.com/v1/homes/h1/history/sun.sun?res=day&from=1&to=2',
+      'https://api.example.com/v1/homes/h1/history/sun.sun',
+    ]);
+  });
+
   it('health: correct URL, no auth header, token not requested', async () => {
     const { client, calls, getToken } = setup(() => json({ ok: true, version: '1' }));
     expect(await client.health()).toEqual({ ok: true, version: '1' });

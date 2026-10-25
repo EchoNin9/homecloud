@@ -111,7 +111,32 @@ export function mockApiPlugin(): Plugin {
           let list = [...h.entities.values()].map(jitter);
           const d = url.searchParams.get('domain');
           if (d) list = list.filter((x) => x.entity_id.startsWith(d + '.'));
-          return send(res, 200, { entities: list, updatedTs: Date.now() });
+          return send(res, 200, { entities: list, updatedTs: Date.now(), historyEntities: ['sensor.*_drive_*_temperature', 'light.*', 'sun.sun', 'binary_sensor.*door*'] });
+        }
+        if ((m = p.match(/^\/v1\/homes\/([^/]+)\/history\/([^/]+)$/))) {
+          // Synthetic history. light.porch, binary_sensor.front_door and anything with "2" in the id are empty (first-deploy case).
+          const id = decodeURIComponent(m[2]!);
+          const res2 = url.searchParams.get('res') ?? 'raw';
+          const to = Number(url.searchParams.get('to') ?? Date.now());
+          const from = Number(url.searchParams.get('from') ?? to - 86_400_000);
+          const empty = /porch|front_door|2/.test(id);
+          const numeric = id.startsWith('sensor.');
+          const H = 3_600_000;
+          const base = { entityId: id, res: res2, from, to, prev: null as unknown };
+          if (empty) return send(res, 200, { ...base, points: [] });
+          if (res2 === 'day') {
+            const points = [];
+            for (let t = from; t <= to; t += 24 * H) {
+              const date = new Date(t).toISOString().slice(0, 10);
+              const k = Math.sin(t / (9e8));
+              points.push(numeric ? { date, min: 36 + 3 * k, max: 48 + 4 * k, avg: 42 + 3 * k, n: 40 } : { date, dur: id === 'sun.sun' ? { above_horizon: (12 + 3 * k) * 3600, below_horizon: (12 - 3 * k) * 3600 } : { on: (4 + 2 * k) * 3600, off: (20 - 2 * k) * 3600 }, n: 4 });
+            }
+            return send(res, 200, { ...base, points: points.slice(-30 * 16) });
+          }
+          const step = numeric ? H / 2 : 3 * H;
+          const pts = [];
+          for (let t = from + step, i = 0; t < to; t += step, i++) pts.push({ t: new Date(t).toISOString(), state: numeric ? String(Math.round(40 + 6 * Math.sin(t / 2e7))) : i % 2 ? 'off' : 'on' });
+          return send(res, 200, { ...base, prev: { t: new Date(from - H).toISOString(), state: numeric ? '41' : 'off' }, points: pts });
         }
         if ((m = p.match(/^\/v1\/homes\/([^/]+)\/entities\/([^/]+)$/))) {
           const ent = homes[decodeURIComponent(m[1]!)]?.entities.get(decodeURIComponent(m[2]!));
