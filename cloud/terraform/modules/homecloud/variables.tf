@@ -87,6 +87,23 @@ variable "create_web_hosting" {
   default     = true
 }
 
+variable "web_domain" {
+  description = "Optional custom domain for the web app, e.g. homecloud.example.com (a subdomain is easiest). Creates an ACM certificate and adds the URL to Cognito and API CORS. Needs the stack in us-east-1 (CloudFront certificates live there). See docs/first-deploy.md \"Custom domain\"."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.web_domain == null || can(regex("^([a-z0-9]([a-z0-9-]*[a-z0-9])?\\.)+[a-z]{2,}$", var.web_domain))
+    error_message = "web_domain must be a lowercase host name such as homecloud.example.com (no scheme, no path)."
+  }
+}
+
+variable "route53_zone_id" {
+  description = "Route 53 hosted zone for web_domain. Set it and the certificate validation and alias records are created for you. Leave null when DNS is elsewhere (e.g. ClouDNS): create the records in the web_dns_records output, then apply again."
+  type        = string
+  default     = null
+}
+
 variable "web_callback_urls" {
   description = "Web app URLs. Created pool: OAuth callback + logout URLs. Always: their origins are added to API CORS. The CloudFront URL is added automatically when create_web_hosting."
   type        = list(string)

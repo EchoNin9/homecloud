@@ -84,6 +84,12 @@ data "aws_iam_policy_document" "deploy" {
     actions   = ["apigateway:*", "iot:*", "cognito-idp:*", "cloudfront:*", "lambda:*", "logs:*", "acm:*", "events:*", "iam:Get*", "iam:List*"]
     resources = ["*"]
   }
+  statement {
+    # Only used when the stack's web_domain is hosted in Route 53 (route53_zone_id set).
+    sid       = "Route53Records"
+    actions   = ["route53:GetHostedZone", "route53:ListResourceRecordSets", "route53:ChangeResourceRecordSets", "route53:GetChange", "route53:ListTagsForResource"]
+    resources = ["*"]
+  }
 }
 
 resource "aws_iam_role" "deploy" {
