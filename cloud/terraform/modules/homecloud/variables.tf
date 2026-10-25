@@ -173,3 +173,9 @@ variable "history_utc_offset_hours" {
     error_message = "history_utc_offset_hours must be a whole number from -12 to 14."
   }
 }
+
+variable "cognito_branding" {
+  description = "Style the created pool's sign-in page like the dashboard (HomeCloud logo, teal, light/dark). Switches the domain to managed login and the pool to the Essentials tier (free for the first 10,000 MAU). Ignored with existing_user_pool_id."
+  type        = bool
+  default     = true
+}
