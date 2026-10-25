@@ -75,7 +75,7 @@ resource "aws_cognito_user_pool_client" "this" {
   }
 }
 
-# Sign-in page styled like the dashboard: HomeCloud logo, teal accent, follows the browser's light/dark mode.
+# Sign-in page styled like the dashboard: HomeCloud logo, teal accent, dark theme.
 # Colours are RRGGBBAA hex without '#'. Values Cognito doesn't know are ignored, so keep to its schema.
 resource "aws_cognito_managed_login_branding" "this" {
   count        = local.create_pool && var.cognito_branding ? 1 : 0
@@ -103,7 +103,8 @@ resource "aws_cognito_managed_login_branding" "this" {
 
   settings = jsonencode({
     categories = {
-      global = { colorSchemeMode = "AUTO", spacingDensity = "REGULAR" }
+      # Cognito rejects "AUTO"; only LIGHT and DARK are verified (provider acceptance tests).
+      global = { colorSchemeMode = "DARK", spacingDensity = "REGULAR" }
       form   = { location = { horizontal = "CENTER", vertical = "CENTER" } }
     }
     components = {

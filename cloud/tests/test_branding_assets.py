@@ -19,3 +19,9 @@ def test_logos_fit_cognito_ratio():
 def test_favicon_is_square():
     w, h = _size(BRANDING / "favicon.svg")
     assert w == h
+
+
+def test_color_scheme_is_a_verified_value():
+    # CreateManagedLoginBranding rejected "AUTO" at apply time; LIGHT and DARK are what the provider's tests use.
+    tf = (BRANDING.parent / "cognito.tf").read_text()
+    assert re.search(r'colorSchemeMode\s*=\s*"(LIGHT|DARK)"', tf)
