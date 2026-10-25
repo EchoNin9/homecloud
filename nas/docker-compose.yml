@@ -13,6 +13,7 @@ services:
 
   mosquitto:
     image: eclipse-mosquitto:2
+    labels: [wud.watch.digest=true]   # floating tag: the update checker compares digests
     # Local only: published on loopback, reachable by HA/Zigbee2MQTT, never from the LAN.
     ports:
       - "127.0.0.1:1883:1883"
@@ -39,6 +40,7 @@ services:
   bridge:
     build: ./bridge
     image: homecloud-bridge:0.1.0
+    labels: [wud.watch=false]   # built locally from this repo; nothing to check
     network_mode: host   # reaches Home Assistant at 127.0.0.1:8123
     environment:
       TZ: ${TZ:-UTC}
@@ -88,9 +90,32 @@ services:
     entrypoint: ["sh", "/monitor.sh"]
     restart: unless-stopped
 
+  # Update checker (What's Up Docker): announces newer images to HA as MQTT `update.*` entities.
+  # Notify only: no update trigger is configured and its web UI/API is off, so nothing here can
+  # change a container. Upgrade by hand (docs/synology.md "Upgrading").
+  wud:
+    image: getwud/wud:9.6.0
+    network_mode: host   # reaches Mosquitto at 127.0.0.1:1883
+    environment:
+      TZ: ${TZ:-UTC}
+      WUD_SERVER_ENABLED: "false"
+      WUD_WATCHER_LOCAL_CRON: "0 6 * * *"   # daily; keeps Docker Hub rate limits happy
+      WUD_TRIGGER_MQTT_HA_URL: mqtt://127.0.0.1:1883
+      WUD_TRIGGER_MQTT_HA_USER: wud
+      WUD_TRIGGER_MQTT_HA_PASSWORD: ${WUD_MQTT_PASSWORD:-}
+      WUD_TRIGGER_MQTT_HA_HASS_ENABLED: "true"
+      # WUD 9 refuses to start without an admin, even with its server off.
+      WUD_AUTH_ADMIN_USER: admin
+      WUD_AUTH_ADMIN_PASSWORD: ${WUD_ADMIN_PASSWORD:-}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ${DATA_ROOT}/wud:/store
+    restart: unless-stopped
+
   # Daily config backup of ${DATA_ROOT} into ${DATA_ROOT}/backups via scripts/backup.sh.
   backup:
     image: debian:bookworm-slim   # GNU tar + bash for backup.sh
+    labels: [wud.watch.digest=true]
     environment:
       DATA_ROOT: /data
       BACKUP_DIR: /data/backups

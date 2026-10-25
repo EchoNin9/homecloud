@@ -132,6 +132,11 @@ A sidecar on the NAS (`nas/docker-compose.yml` `monitor`) sets `sensor.docker_{n
 Home Assistant every 60 s. The `state` is Docker's `State` (`running`, `exited`,
 `restarting`, …). Attributes: `image`, `started_at` (ISO), `health` (`healthy`,
 `unhealthy`, `starting` or `null`), `icon`.
+
+The NAS update checker (What's Up Docker, `wud` service) publishes `update.wud_container_local_{container}`
+through HA's MQTT discovery. The `state` is `on` when a newer image exists. Attributes: `title` (the
+container name), `installed_version` (tag), `latest_version` (a tag, or `sha256:…` when the same tag
+has a new image), `release_url`. **Notify only:** `update.install` is never in a service allowlist.
 These are ordinary entities to the bridge and the cloud.
 
 ## HTTP API (`/v1`, Cognito JWT on every route except `/v1/health`)

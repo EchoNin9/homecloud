@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Mapping
 
-DEFAULT_DOMAINS = "light,switch,sensor,binary_sensor,climate,cover,lock,fan,scene,script,sun"
+DEFAULT_DOMAINS = "light,switch,sensor,binary_sensor,climate,cover,lock,fan,scene,script,sun,update"
 DEFAULT_SERVICES = (
     "light.turn_on,light.turn_off,light.toggle,switch.turn_on,switch.turn_off,"
     "switch.toggle,scene.turn_on,climate.set_temperature,cover.open_cover,"

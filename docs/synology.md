@@ -157,6 +157,31 @@ cloud like any other sensor. The web dashboard shows them as sensor tiles, plus 
 chip when one isn't `running` or is `unhealthy`. It needs `sensor` in `BRIDGE_ALLOWED_DOMAINS`
 (it is by default).
 
+## 10. Upgrading
+
+The `wud` service (What's Up Docker) checks every container's image daily at 06:00. When a newer image
+exists, the dashboard shows an amber **Update** chip. Clicking it shows the commands to run. It only
+notifies: nothing in the cloud can upgrade the NAS.
+
+Setup, once:
+1. Add an MQTT user for it. Put the password in `.env` as `WUD_MQTT_PASSWORD`, then run
+   `sudo docker run --rm -v /volume1/docker/homecloud/mosquitto/passwd:/p eclipse-mosquitto:2 mosquitto_passwd -b /p wud "$PW"`
+   and `sudo docker kill -s HUP homecloud-mosquitto-1`.
+2. Set `WUD_ADMIN_PASSWORD` in `.env`. WUD 9 won't start without one, even though its UI is off.
+3. `sudo mkdir -p /volume1/docker/homecloud/wud && sudo docker compose up -d wud`.
+4. Add `update` to `BRIDGE_ALLOWED_DOMAINS`, and `sensor.wud_*,binary_sensor.wud_*` to
+   `BRIDGE_ENTITY_EXCLUDE`. Then run `sudo docker compose up -d bridge`.
+
+Upgrading, from the stack folder (take a backup first: `sudo docker compose exec backup bash /backup.sh`):
+
+| The chip says | Do |
+|---|---|
+| `<svc> · new :<tag>` (same tag, new image) | `sudo docker compose pull <svc> && sudo docker compose up -d <svc>` |
+| `<svc> <old> → <new>` | Change the image tag in `docker-compose.yml` (and in the repo), then `sudo docker compose up -d <svc>` |
+| bridge | Not checked. Copy the new `nas/bridge`, then `sudo docker compose build bridge && sudo docker compose up -d bridge` |
+
+Then `sudo docker image prune -f`. To roll back, put the old tag back, and restore the backup if the config changed.
+
 ## Troubleshooting
 
 | Symptom | Check |
