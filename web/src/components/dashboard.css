@@ -200,8 +200,9 @@ button.hc-badge:hover { border-color: var(--hc-muted); }
 .hc-banner-warn { background: var(--hc-warn-bg); color: var(--hc-warn-text); }
 .hc-empty { color: var(--hc-muted); text-align: center; padding: 48px 8px; }
 
-.hc-section { margin-bottom: 20px; scroll-margin-top: 68px; }
-.hc-section-title { margin: 0 0 8px 2px; font-size: 1rem; font-weight: 500; }
+.hc-section { margin-bottom: 20px; }
+/* Sidebar jumps target the heading: keep it clear of the sticky toolbar (56px + gap). */
+.hc-section-title { margin: 0 0 8px 2px; font-size: 1rem; font-weight: 500; scroll-margin-top: 68px; }
 .hc-tiles { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr)); }
 
 /* ---------- Tiles ---------- */
