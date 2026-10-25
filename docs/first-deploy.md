@@ -26,7 +26,7 @@ Time: about 1–2 hours. Commands assume the repo root unless a `cd` says otherw
 
 ## 1. State bucket (one time per AWS account)
 
-OpenTofu state for every homecloud stack lives in one S3 bucket. The bucket is versioned,
+OpenTofu state for every HomeCloud stack lives in one S3 bucket. The bucket is versioned,
 encrypted, blocks public access, allows TLS only, and expires old state versions after 90 days.
 Locking uses S3 lockfiles, so no DynamoDB table is needed.
 
