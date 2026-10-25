@@ -189,7 +189,8 @@ certificate, the DynamoDB table or the user pool.
 
 **History:** the module keeps history for entities matching `history_entities` (globs, with
 defaults for drive temps, doors, lights, `sun.sun` and NAS containers). Set it to `[]` to turn
-history off. A daily `homecloud-rollup` Lambda runs at 00:15 UTC. Smoke test after a day:
+history off. Daily summaries split at local midnight for `history_utc_offset_hours` (a fixed offset, no DST,
+default 0 = UTC). A daily `homecloud-rollup` Lambda runs at 00:15 local. Smoke test after a day:
 `aws lambda invoke --function-name homecloud-rollup /dev/stdout` returns `"rollups": N` with N > 0.
 
 ## Troubleshooting

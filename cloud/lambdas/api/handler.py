@@ -223,7 +223,8 @@ def get_history(event, home, entity_id):
     pk = Key("PK").eq(f"HIST#{home}#{entity_id}")
     out = {"entityId": entity_id, "res": res, "from": frm, "to": to, "prev": None, "points": []}
     if res == "day":
-        lo, hi = f"D#{iso(frm)[:10]}", f"D#{iso(to)[:10]}"
+        day = lambda ms: dt.datetime.fromtimestamp(ms / 1000, hc.history_tz()).date().isoformat()
+        lo, hi = f"D#{day(frm)}", f"D#{day(to)}"
     else:
         lo, hi = f"R#{iso(frm)}", f"R#{iso(to)}"
         before = _table().query(KeyConditionExpression=pk & Key("SK").between("R#", lo),

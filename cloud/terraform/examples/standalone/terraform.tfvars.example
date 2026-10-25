@@ -7,3 +7,6 @@ home_ids = ["home"]
 device_csr_files = {
   home = "./certs/home.csr"
 }
+
+# Daily history rollups split at local midnight for this fixed UTC offset (no DST), e.g. -7.
+# history_utc_offset_hours = -7

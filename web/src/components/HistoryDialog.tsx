@@ -57,7 +57,7 @@ export function HistoryDialog({ client, homeId, entity, onClose }: Props) {
           : loading ? <p className="hc-muted">Loading…</p>
           : model && model.kind !== 'empty' ? <Chart model={model} unit={unit} long={RANGES[range].res === 'day'} name={name} />
           : <p className="hc-muted">{RANGES[range].res === 'day'
-              ? 'No daily summaries yet. They are built nightly (00:15 UTC) from recorded changes, so the first appears the day after history starts.'
+              ? 'No daily summaries yet. They are built nightly, just after midnight, from recorded changes, so the first appears the day after history starts.'
               : 'No history yet. Changes are recorded from when history was first deployed; this entity hasn\'t changed since.'}</p>}
       </div>
       <form method="dialog" className="hc-dialog-actions">
