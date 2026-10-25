@@ -69,7 +69,7 @@ export function App({ getToken: externalGetToken }: AppProps) {
     case 'no-config':
       return (
         <main className="app-center">
-          <h1>homecloud isn't configured</h1>
+          <h1>HomeCloud isn't configured</h1>
           <p>The app couldn't load a valid <code>/config.json</code>: {phase.reason}.</p>
           <p>
             Copy <code>config.example.json</code> to <code>config.json</code> next to <code>index.html</code> and fill in your
@@ -88,7 +88,7 @@ export function App({ getToken: externalGetToken }: AppProps) {
     case 'signed-out':
       return (
         <main className="app-center">
-          <h1>homecloud</h1>
+          <h1>HomeCloud</h1>
           <p>Sign in to see your homes.</p>
           <button type="button" className="app-btn" onClick={() => auth?.login()}>Sign in</button>
           <button type="button" className="app-link" onClick={() => auth?.login('forgotPassword')}>Forgot password?</button>

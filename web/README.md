@@ -1,6 +1,6 @@
-# homecloud web
+# HomeCloud web
 
-React 18 + Vite 5 + TypeScript dashboard for homecloud, plus a dependency-free API client you can embed in other apps. The HTTP API it speaks is defined in `../docs/contract.md`.
+React 18 + Vite 5 + TypeScript dashboard for HomeCloud, plus a dependency-free API client you can embed in other apps. The HTTP API it speaks is defined in `../docs/contract.md`.
 
 ```
 src/client/      HomeCloudClient (no React, no deps) - copy or import anywhere

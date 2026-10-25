@@ -63,5 +63,5 @@ nothing else claims them.
 ## Relationship to the official Home Assistant Companion app
 
 The HA Companion app needs HA to be reachable remotely, through Nabu Casa or by exposing
-HA yourself. The homecloud app goes through AWS only. The NAS opens no ports, logins use your
+HA yourself. The HomeCloud app goes through AWS only. The NAS opens no ports, logins use your
 Cognito, and commands are limited to an allowlist. Both apps can be installed side by side.

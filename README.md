@@ -1,4 +1,4 @@
-# homecloud
+# HomeCloud
 
 **Home Assistant on your Synology, with your own cloud dashboard and API on AWS.**
 

@@ -1,4 +1,4 @@
-# homecloud contract (v1)
+# HomeCloud contract (v1)
 
 The single source of truth shared by the three parts. Change this file first,
 then the code.

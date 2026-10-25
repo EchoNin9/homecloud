@@ -1,4 +1,4 @@
-# Integrating the homecloud cloud half
+# Integrating the HomeCloud cloud half
 
 The OpenTofu module (Terraform-compatible) in `cloud/terraform/modules/homecloud` implements the AWS side of
 [`contract.md`](contract.md): DynamoDB, IoT Core (thing + cert + policy per home), two Lambdas,
