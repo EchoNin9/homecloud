@@ -404,14 +404,14 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
               </button>
             )}
             {sun.rise && (
-              <span className="hc-badge" data-kind="sun" title="Today’s sunrise">
-                <Icon path={mdiWeatherSunsetUp} size={18} /><span className="hc-badge-text">{sun.rise}</span>
-              </span>
+              <button type="button" className="hc-badge" data-kind="sun" title="Today’s sunrise: open Sun &amp; moon" onClick={() => setInfoFor('sun.sun')}>
+                <Icon path={mdiWeatherSunsetUp} size={18} /><span className="hc-badge-text"><span className="hc-sr">Sunrise </span>{sun.rise}</span>
+              </button>
             )}
             {sun.set && (
-              <span className="hc-badge" data-kind="sun" title="Today’s sunset">
-                <Icon path={mdiWeatherSunsetDown} size={18} /><span className="hc-badge-text">{sun.set}</span>
-              </span>
+              <button type="button" className="hc-badge" data-kind="sun" title="Today’s sunset: open Sun &amp; moon" onClick={() => setInfoFor('sun.sun')}>
+                <Icon path={mdiWeatherSunsetDown} size={18} /><span className="hc-badge-text"><span className="hc-sr">Sunset </span>{sun.set}</span>
+              </button>
             )}
           </section>
         )}

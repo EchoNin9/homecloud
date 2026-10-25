@@ -11,6 +11,8 @@
   --hc-accent-text: #ffffff;
   --hc-on: #c26a00;      /* lights/switches on: amber */
   --hc-alert: #d32f2f;   /* door open, service down */
+  --hc-moon: #5b63c9;
+  --hc-sun: #c26a00;     /* chart lines: validated pair with --hc-moon */
   --hc-ok: #15803d;
   --hc-bad-bg: #fde8e8;
   --hc-bad-text: #7f1d1d;
@@ -39,6 +41,8 @@
     --hc-accent-text: #0b1220;
     --hc-on: #ffb300;
     --hc-alert: #f26d6d;
+    --hc-moon: #7680e8;
+    --hc-sun: #c98500;
     --hc-ok: #4ade80;
     --hc-bad-bg: #3a1717;
     --hc-bad-text: #fecaca;
@@ -318,6 +322,25 @@ button.hc-badge:hover { border-color: var(--hc-muted); }
 .hc-table table { border-collapse: collapse; margin-top: 6px; }
 .hc-table td { padding: 2px 12px 2px 0; }
 .hc-table tbody { display: block; max-height: 200px; overflow-y: auto; }
+
+/* ---------- Sun & moon ---------- */
+.hc-sunmoon .hc-chart { margin-top: 10px; }
+.hc-night { fill: var(--hc-surface-2); opacity: 0.7; }
+.hc-horizon { stroke: var(--hc-muted); stroke-width: 1; }
+.hc-sun-line { fill: none; stroke: var(--hc-sun); stroke-width: 2; stroke-linejoin: round; }
+.hc-moon-line { fill: none; stroke: var(--hc-moon); stroke-width: 2; stroke-linejoin: round; }
+.hc-sun-dot { fill: var(--hc-sun); stroke: var(--hc-surface); stroke-width: 2; }
+.hc-moon-dot { fill: var(--hc-moon); stroke: var(--hc-surface); stroke-width: 2; }
+.hc-sun-sw { height: 3px; background: var(--hc-sun); }
+.hc-moon-sw { height: 3px; background: var(--hc-moon); margin-left: 8px; }
+.hc-night-sw { background: var(--hc-surface-2); border: 1px solid var(--hc-border); margin-left: 8px; }
+.hc-astro { display: grid; gap: 8px; margin: 12px 0 0; font-size: 0.9rem; }
+.hc-astro div { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+.hc-astro dt { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; min-width: 72px; }
+.hc-astro dt .hc-icon { color: var(--hc-on); }
+.hc-astro div + div dt .hc-icon { color: var(--hc-moon); }
+.hc-astro dd { margin: 0; color: var(--hc-muted); font-variant-numeric: tabular-nums; }
+.hc-table th { text-align: left; font-weight: 600; padding: 2px 12px 2px 0; }
 
 /* ---------- Bulk bar, toasts ---------- */
 .hc-bulk {
