@@ -1,4 +1,4 @@
-import { mdiAlertCircleOutline, mdiBookmarkPlusOutline, mdiCheckboxMultipleMarkedOutline, mdiDocker, mdiDotsVertical, mdiDoorOpen, mdiHarddisk, mdiMagnify, mdiMenu, mdiPackageUp, mdiWeatherSunsetDown, mdiWeatherSunsetUp } from '@mdi/js';
+import { mdiAlertCircleOutline, mdiBookmarkPlusOutline, mdiFolderPlusOutline, mdiCheckboxMultipleMarkedOutline, mdiDocker, mdiDotsVertical, mdiDoorOpen, mdiHarddisk, mdiMagnify, mdiMenu, mdiPackageUp, mdiWeatherSunsetDown, mdiWeatherSunsetUp } from '@mdi/js';
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { Entity, Home, HomeCloudClient } from '../client';
 import { EntityCard, type Action } from './EntityCard';
@@ -7,7 +7,7 @@ import { Icon } from './icons';
 import { MoreInfo, UpdateBody } from './MoreInfo';
 import { Sidebar } from './Sidebar';
 import { usePoll } from './usePoll';
-import { DEFAULT_PREFS, MAX_QUERIES, domainOf, errorMessage, formatLastSeen, friendlyName, matchesFilter, organize, saveQuery, sunTimes, updateInfo, warnings, type ViewPrefs } from './util';
+import { DEFAULT_PREFS, MAX_QUERIES, domainOf, errorMessage, formatLastSeen, friendlyName, groupIds, matchesFilter, moveGroup, organize, saveQuery, setMembers, sunTimes, updateInfo, warnings, type ViewPrefs } from './util';
 import './dashboard.css';
 
 export interface HomeCloudDashboardProps {
@@ -83,13 +83,6 @@ function useCollapsed() {
 const ALERT_ICON = { door: mdiDoorOpen, service: mdiDocker, drive: mdiHarddisk, update: mdiPackageUp };
 
 const toggle = (list: string[], id: string) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
-
-/** Toggle an entity in a named group; creates the group if new, drops it when empty. */
-function toggleInGroup(groups: Record<string, string[]>, name: string, id: string) {
-  const next = toggle(groups[name] ?? [], id);
-  const { [name]: _old, ...rest } = groups;
-  return next.length ? { ...rest, [name]: next } : rest;
-}
 
 
 export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, onSignOut }: HomeCloudDashboardProps) {
@@ -227,11 +220,10 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
     const g = bulkGroup.trim();
     if (!g) return;
     const isNew = !prefs.groups[g];
-    const next = add ? addAll(prefs.groups[g] ?? [], picked) : dropAll(prefs.groups[g] ?? [], picked);
-    const { [g]: _old, ...rest } = prefs.groups;
-    bulk(add ? `${isNew ? 'Created' : 'Added to'} “${g}”: ${n(picked.length)}` : `Removed ${n(picked.length)} from “${g}”`, {
-      groups: next.length ? { ...rest, [g]: next } : rest,
-    });
+    bulk(
+      add ? `${isNew ? 'Created' : 'Added to'} “${g}”: ${n(picked.length)}` : `Removed ${n(picked.length)} from “${g}”`,
+      setMembers(prefs, g, picked, add, entities ?? []),
+    );
   };
   const sectionId = (key: string) => `${homeLabelId}-${key}`;
   const [queryMsg, setQueryMsg] = useState('');
@@ -243,6 +235,15 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
     } else setQueryMsg(`Limit is ${MAX_QUERIES}. Delete one first.`);
   };
   const closeNav = useCallback(() => setNavOpen(false), []);
+  /** Results bar: turn the current search into a live group named after it, and open it. */
+  const saveAsGroup = () => {
+    const q = filter.trim();
+    const base = q.charAt(0).toUpperCase() + q.slice(1);
+    let name = base;
+    for (let i = 2; prefs.groups[name]; i++) name = `${base} ${i}`;
+    setPrefs({ groups: { ...prefs.groups, [name]: [] }, groupQueries: { ...prefs.groupQueries, [name]: q }, group: 'custom', sort: 'name', only: name });
+    setFilter('');
+  };
   useEffect(() => {
     if (!selecting) return;
     const onKey = (e: KeyboardEvent) => {
@@ -290,20 +291,17 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
           closeNav();
           document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }}
-        groups={groupNames.map((g): [string, number] => [g, prefs.groups[g]!.length])}
+        groups={groupNames.map((g): [string, number] => [g, groupIds(g, entities ?? [], prefs).size])}
         onOpenGroup={(g) => {
           setPrefs({ group: 'custom', sort: 'name', only: g });
           closeNav();
           window.scrollTo({ top: 0 });
         }}
         onRenameGroup={(from, to) => {
-          if (prefs.groups[to]) return;
-          const { [from]: ids, ...rest } = prefs.groups;
-          setPrefs({ groups: { ...rest, [to]: ids! }, ...(prefs.only === from ? { only: to } : {}) });
+          if (!prefs.groups[to]) setPrefs(moveGroup(prefs, from, to));
         }}
         onDeleteGroup={(g) => {
-          const { [g]: _gone, ...rest } = prefs.groups;
-          setPrefs({ groups: rest, ...(prefs.only === g ? { only: '' } : {}) });
+          setPrefs(moveGroup(prefs, g, null));
         }}
         filter={filter}
         onSaveQuery={onSaveQuery}
@@ -401,6 +399,33 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
           </section>
         )}
 
+        {prefs.group === 'custom' && prefs.only && prefs.groups[prefs.only] && (
+          <div className="hc-group-head">
+            <label className="hc-group-query">
+              <span>Members matching</span>
+              <span className="hc-search-box">
+                <Icon path={mdiMagnify} size={18} />
+                <input
+                  className="hc-input"
+                  type="search"
+                  placeholder="Add a search, e.g. bedroom"
+                  value={prefs.groupQueries[prefs.only] ?? ''}
+                  onChange={(e) => {
+                    const q = e.target.value;
+                    const { [prefs.only]: _q, ...rest } = prefs.groupQueries;
+                    setPrefs({ groupQueries: q ? { ...rest, [prefs.only]: q } : rest });
+                  }}
+                />
+              </span>
+            </label>
+            <span className="hc-muted">
+              {(prefs.groups[prefs.only] ?? []).length} added by hand
+              {(prefs.groupOut[prefs.only] ?? []).length > 0 && <> · {prefs.groupOut[prefs.only]!.length} removed from the search</>}
+              {' '}· add or remove more with Select or an entity's Groups menu
+            </span>
+          </div>
+        )}
+
         {filter.trim() && entities && (
           <div className="hc-results" role="status">
             <span>
@@ -424,6 +449,9 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
                 <Icon path={mdiCheckboxMultipleMarkedOutline} size={18} /> Select {shownIds.length === 1 ? 'it' : `all ${shownIds.length}`}
               </button>
             )}
+            <button type="button" className="hc-chip-btn" onClick={saveAsGroup}>
+              <Icon path={mdiFolderPlusOutline} size={18} /> Save as group
+            </button>
             {!prefs.queries.includes(filter.trim()) && (
               <button type="button" className="hc-chip-btn" onClick={onSaveQuery}>
                 <Icon path={mdiBookmarkPlusOutline} size={18} /> Save search
@@ -449,7 +477,7 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
         ) : groups.length === 0 && entities ? (
           <p className="hc-empty">
             {filter ? `No entities match “${filter}”.`
-              : prefs.group === 'custom' && prefs.only ? `“${prefs.only}” has nothing to show. Its entities may be hidden; add some with Select.`
+              : prefs.group === 'custom' && prefs.only ? `“${prefs.only}” has no members yet. Add a search above, or pick entities with Select.`
               : 'This home has not reported any entities yet.'}
           </p>
         ) : (
@@ -532,8 +560,8 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
           onToggleFav={() => setPrefs({ favs: toggle(prefs.favs, info.entity_id) })}
           onToggleHidden={() => setPrefs({ hidden: toggle(prefs.hidden, info.entity_id) })}
           groupNames={groupNames}
-          inGroups={groupNames.filter((g) => prefs.groups[g]!.includes(info.entity_id))}
-          onToggleGroup={(g) => setPrefs({ groups: toggleInGroup(prefs.groups, g, info.entity_id) })}
+          inGroups={groupNames.filter((g) => groupIds(g, [info], prefs).has(info.entity_id))}
+          onToggleGroup={(g) => setPrefs(setMembers(prefs, g, [info.entity_id], !groupIds(g, [info], prefs).has(info.entity_id), entities ?? []))}
           onClose={() => setInfoFor(null)}
         />
       )}
