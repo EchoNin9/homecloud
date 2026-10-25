@@ -480,7 +480,7 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
 
         {error != null && (
           <p className="hc-banner" role="alert">
-            <Icon path={mdiAlertCircleOutline} size={20} /> Can't reach homecloud ({errorMessage(error)}). Showing last known state; retrying…
+            <Icon path={mdiAlertCircleOutline} size={20} /> Can't reach HomeCloud ({errorMessage(error)}). Showing last known state; retrying…
           </p>
         )}
         {home && !home.online && (

@@ -75,7 +75,7 @@ export function Sidebar(p: Props) {
           <button type="button" className="hc-icon-btn hc-side-close" aria-label="Close navigation" onClick={p.onClose}>
             <Icon path={mdiClose} />
           </button>
-          <span className="hc-side-brand"><span className="hc-side-logo" aria-hidden="true"><Icon path={mdiHomeVariant} size={18} /></span>homecloud</span>
+          <span className="hc-side-brand"><span className="hc-side-logo" aria-hidden="true"><Icon path={mdiHomeVariant} size={18} /></span>HomeCloud</span>
         </div>
 
         <nav className="hc-side-scroll" aria-label="Views">

@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Plugin } from 'vite';
+import { kelvinToRgb } from '../src/components/color';
 
 interface E {
   entity_id: string;
@@ -27,6 +28,7 @@ export function mockApiPlugin(): Plugin {
           e('light.kitchen', 'on', { brightness: 180, supported_color_modes: ['brightness'] }),
           e('light.living_room', 'off', { brightness: 120, supported_color_modes: ['brightness'] }),
           e('light.hallway', 'on', { supported_color_modes: ['onoff'] }),
+          e('light.reading_lamp', 'on', { brightness: 200, supported_color_modes: ['color_temp', 'hs'], color_mode: 'hs', rgb_color: [255, 96, 64], min_color_temp_kelvin: 2000, max_color_temp_kelvin: 6500, homecloud_area: 'Living room' }),
           e('light.flaky_bulb', 'off', { friendly_name: 'Flaky bulb (always fails)', supported_color_modes: ['onoff'] }),
           e('switch.coffee_maker', 'off'),
           e('switch.garden_pump', 'on'),
@@ -82,6 +84,9 @@ export function mockApiPlugin(): Plugin {
     if (service === 'turn_on') {
       ent.state = 'on';
       if (typeof data.brightness === 'number') ent.attributes.brightness = data.brightness;
+      // Like HA: setting one colour mode clears the other, and rgb_color always reflects the output.
+      if (Array.isArray(data.rgb_color)) Object.assign(ent.attributes, { rgb_color: data.rgb_color, color_mode: 'hs', color_temp_kelvin: null });
+      if (typeof data.color_temp_kelvin === 'number') Object.assign(ent.attributes, { color_temp_kelvin: data.color_temp_kelvin, color_mode: 'color_temp', rgb_color: kelvinToRgb(data.color_temp_kelvin) });
     } else if (service === 'turn_off') ent.state = 'off';
     else if (service === 'open_cover') ent.state = 'open';
     else if (service === 'close_cover') ent.state = 'closed';

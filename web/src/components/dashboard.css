@@ -131,6 +131,18 @@
 .hc-range::-webkit-slider-thumb { -webkit-appearance: none; width: 4px; height: 14px; border-radius: 2px; background: rgb(255 255 255 / 0.9); box-shadow: 0 0 0 1px rgb(0 0 0 / 0.12); }
 .hc-range::-moz-range-thumb { width: 4px; height: 14px; border: 0; border-radius: 2px; background: rgb(255 255 255 / 0.9); box-shadow: 0 0 0 1px rgb(0 0 0 / 0.12); }
 .hc-range:disabled { opacity: 0.45; cursor: not-allowed; }
+/* White temperature: the track is the warm-to-cool scale itself. */
+.hc-range-temp { background: linear-gradient(to right, var(--hc-warm), var(--hc-cool)); box-shadow: inset 0 0 0 1px var(--hc-border); }
+.hc-range-temp::-webkit-slider-thumb { background: #fff; box-shadow: 0 0 0 1px rgb(0 0 0 / 0.35), 0 1px 3px rgb(0 0 0 / 0.3); }
+.hc-range-temp::-moz-range-thumb { background: #fff; box-shadow: 0 0 0 1px rgb(0 0 0 / 0.35), 0 1px 3px rgb(0 0 0 / 0.3); }
+/* Colour swatch (native picker). */
+.hc-color { flex: none; width: 48px; height: 48px; padding: 4px; border: 1px solid var(--hc-border-strong); border-radius: 14px; background: var(--hc-surface); cursor: pointer; }
+.hc-color::-webkit-color-swatch-wrapper { padding: 0; }
+.hc-color::-webkit-color-swatch { border: 0; border-radius: 10px; }
+.hc-color::-moz-color-swatch { border: 0; border-radius: 10px; }
+.hc-color:disabled { opacity: 0.45; cursor: not-allowed; }
+.hc-light-color { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.hc-light-color .hc-range-temp { flex: 1; }
 
 .hc-stepper { display: flex; align-items: center; gap: 8px; }
 .hc-step { width: 40px; padding: 0; font-size: 1.2rem; line-height: 1; border-radius: 50%; box-shadow: none; background: var(--hc-surface-2); border-color: transparent; }
@@ -286,6 +298,12 @@ button.hc-badge:hover { border-color: var(--hc-border-strong); box-shadow: var(-
   color: var(--hc-muted); background: var(--hc-surface-2); transition: background 0.2s, color 0.2s, box-shadow 0.2s;
 }
 .hc-tile-icon[data-tone='on'] { color: var(--hc-on); background: color-mix(in srgb, var(--hc-on) 18%, transparent); box-shadow: 0 0 14px color-mix(in srgb, var(--hc-on) 22%, transparent); }
+.hc-tile-icon[data-tinted] {
+  /* An on light shows its own colour; mixed with the text colour so pale colours stay visible. */
+  color: color-mix(in srgb, var(--hc-light) 72%, var(--hc-text));
+  background: color-mix(in srgb, var(--hc-light) 20%, transparent);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--hc-light) 28%, transparent);
+}
 .hc-tile-icon[data-tone='alert'] { color: var(--hc-alert); background: color-mix(in srgb, var(--hc-alert) 16%, transparent); }
 .hc-tile-icon[data-tone='active'] { color: var(--hc-accent); background: color-mix(in srgb, var(--hc-accent) 14%, transparent); }
 .hc-tile-icon[data-busy]::after {

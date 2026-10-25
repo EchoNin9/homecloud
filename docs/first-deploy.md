@@ -26,7 +26,7 @@ Time: about 1–2 hours. Commands assume the repo root unless a `cd` says otherw
 
 ## 1. State bucket (one time per AWS account)
 
-OpenTofu state for every homecloud stack lives in one S3 bucket. The bucket is versioned,
+OpenTofu state for every HomeCloud stack lives in one S3 bucket. The bucket is versioned,
 encrypted, blocks public access, allows TLS only, and expires old state versions after 90 days.
 Locking uses S3 lockfiles, so no DynamoDB table is needed.
 
@@ -123,6 +123,14 @@ Cognito emails you a temporary password. You'll set a new one at first sign-in i
 
 **Smoke test:** `aws cognito-idp admin-list-groups-for-user --user-pool-id "$POOL" --username you@example.com`
 lists `admin`.
+
+**Sign-in page branding.** With the default `cognito_branding = true`, the module styles the sign-in page
+like the dashboard: HomeCloud logo, teal buttons, and light or dark following the browser. It uses Cognito
+*managed login*, which needs the pool's **Essentials** tier. Essentials is free for the first 10,000 monthly
+active users and is the default for new pools. To keep AWS's classic hosted UI and the Lite tier, set
+`cognito_branding = false` in the module call. The logo files are in
+`cloud/terraform/modules/homecloud/branding/`. The setting has no effect with `existing_user_pool_id`:
+style your own pool in the Cognito console (Managed login → Styles).
 
 ## 6. NAS stack
 
@@ -236,6 +244,7 @@ apply. The CloudFront address keeps working too.
 | Symptom | Usual cause | Fix |
 |---|---|---|
 | `tofu init`: `Unsupported argument "use_lockfile"` | OpenTofu or Terraform older than 1.10 | Upgrade, or replace `use_lockfile` with a DynamoDB `dynamodb_table` |
+| Sign-in page shows an error instead of the form | The domain is on managed login, but the app client has no style | Re-run `tofu apply`; the branding resource creates the style. Or set `cognito_branding = false` |
 | `tofu apply`: Cognito domain already exists | The hosted UI prefix is globally unique per region | Set `cognito_domain_prefix` in the module call |
 | Bridge: TLS or connection refused to IoT | Client id isn't the thing name, wrong endpoint, or wrong file permissions | Check `IOT_THING_NAME` and `IOT_ENDPOINT`; certificates must be readable by UID 10001 |
 | Bridge: connects, then drops every few seconds | Two bridges using the same client id | Run only one bridge per home |

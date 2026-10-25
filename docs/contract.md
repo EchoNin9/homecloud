@@ -1,4 +1,4 @@
-# homecloud contract (v1)
+# HomeCloud contract (v1)
 
 The single source of truth shared by the three parts. Change this file first,
 then the code.
@@ -189,6 +189,12 @@ check is a second layer. Errors are returned as `{"error": "<code>", "message": 
 - `lastSeenTs` may be `null`, meaning the home has never been seen. `Entity.updated_ts` and the
   list response's `updatedTs` are optional.
 - Light brightness uses `data.brightness` from 0 to 255.
+- Light colour uses Home Assistant's own names, passed through unchanged. Commands send
+  `data.rgb_color` (`[r, g, b]`, each 0 to 255) or `data.color_temp_kelvin`. Clients read the
+  entity attributes `supported_color_modes` (`hs`, `xy`, `rgb`, `rgbw` or `rgbww` mean full colour;
+  `color_temp` means white temperature), `rgb_color`, `color_temp_kelvin`, `min_color_temp_kelvin`
+  and `max_color_temp_kelvin`. No API or bridge change: `light.turn_on` is already allowlisted and
+  `data` is forwarded as is.
 - The Cognito app client is public: no secret, authorization-code flow with PKCE. The web
   `redirectUri` must be registered as both a callback URL and a logout URL.
 

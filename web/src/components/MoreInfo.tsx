@@ -1,7 +1,7 @@
 import { mdiCheck, mdiClose, mdiContentCopy, mdiEyeOff, mdiEyeOutline, mdiStar, mdiStarOutline } from '@mdi/js';
 import { useEffect, useRef, useState } from 'react';
 import type { Entity, HomeCloudClient } from '../client';
-import { Brightness, Climate, Switch, hasBrightness, primaryAction, type OnAction } from './EntityCard';
+import { Brightness, Climate, ColorTemp, LightColor, Switch, hasBrightness, hasColor, hasColorTemp, lightTint, primaryAction, type OnAction } from './EntityCard';
 import { HistoryPanel } from './HistoryPanel';
 import { SunMoon } from './SunMoon';
 import { Icon, entityIcon, iconTone } from './icons';
@@ -49,6 +49,12 @@ export function MoreInfo(p: Props) {
           <Switch checked={e.state === 'on'} label={name} disabled={disabled} onChange={() => act && onAction(e, act)} />
         </div>
         {hasBrightness(e) && <Brightness entity={e} disabled={disabled} onAction={onAction} />}
+        {(hasColorTemp(e) || hasColor(e)) && (
+          <div className="hc-light-color">
+            {hasColorTemp(e) && <ColorTemp entity={e} disabled={disabled} onAction={onAction} />}
+            {hasColor(e) && <LightColor entity={e} disabled={disabled} onAction={onAction} />}
+          </div>
+        )}
       </>
     );
   } else if (d === 'climate') {
@@ -84,7 +90,7 @@ export function MoreInfo(p: Props) {
   return (
     <dialog ref={ref} tabIndex={-1} className="hc-dialog hc-more-info" onClose={p.onClose} aria-labelledby="hc-mi-title">
       <header className="hc-mi-head">
-        <span className="hc-tile-icon" data-tone={iconTone(e) || undefined} data-busy={busy || undefined}><Icon path={entityIcon(e)} /></span>
+        <span className="hc-tile-icon" data-tone={iconTone(e) || undefined} data-busy={busy || undefined} {...lightTint(e)}><Icon path={entityIcon(e)} /></span>
         <div className="hc-mi-title">
           <h2 id="hc-mi-title">{name}</h2>
           <p className="hc-muted">
