@@ -219,8 +219,8 @@ Each of these has broken this stack at least once. Add new ones here when you hi
   "command not found". Use `sudo /usr/local/bin/docker ...` or add it to `secure_path`.
 - Container Manager's UI ignores compose **profiles**. Start `adguard` and `zigbee` with
   `docker compose --profile <name> up -d` over SSH.
-- DSM's Docker engine is old (24.x, API 1.43). Newer CLI images (`docker:27-cli`) negotiate down
-  automatically. Plain `docker compose ps --format` templates with tabs can fail to parse, so use
+- DSM's Docker engine is old (24.x, API 1.43). Newer CLI images negotiate down automatically
+  (checked: `docker:29-cli`, client 29.9 → API 1.43). Plain `docker compose ps --format` templates with tabs can fail to parse, so use
   `docker ps --format`.
 - `scp` to DSM needs `-O` (legacy protocol) unless the SFTP server is enabled.
 

@@ -79,7 +79,7 @@ services:
   # Mirrors each container's state into HA as sensor.docker_<name> (contract.md "NAS container sensors").
   # ponytail: the Docker socket is root-equivalent; this runs one fixed script. Use a socket proxy if more joins it.
   monitor:
-    image: docker:27-cli
+    image: docker:29-cli
     network_mode: host   # reaches Home Assistant at 127.0.0.1:8123
     environment:
       HA_URL: http://127.0.0.1:8123
