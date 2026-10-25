@@ -163,7 +163,7 @@
 .hc-side-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hc-side-badge {
   min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; display: inline-grid; place-items: center;
-  font-size: 0.75rem; font-weight: 700; background: var(--hc-on); color: #1b1f27; font-variant-numeric: tabular-nums;
+  font-size: 0.75rem; font-weight: 700; background: var(--hc-accent); color: var(--hc-accent-text); font-variant-numeric: tabular-nums;
 }
 /* Sub-lists hang off a hairline guide under the parent icon. */
 .hc-side-sub { position: relative; margin: 2px 0 8px !important; }
@@ -246,8 +246,14 @@ button.hc-badge:hover { border-color: var(--hc-border-strong); box-shadow: var(-
   background: color-mix(in srgb, var(--hc-alert) 7%, var(--hc-surface)); border-color: color-mix(in srgb, var(--hc-alert) 30%, var(--hc-border));
 }
 .hc-badge[data-kind='door'] .hc-icon, .hc-badge[data-kind='service'] .hc-icon, .hc-badge[data-kind='drive'] .hc-icon { color: var(--hc-alert); background: color-mix(in srgb, var(--hc-alert) 14%, transparent); }
-.hc-badge[data-kind='update'] .hc-icon, .hc-badge[data-kind='sun'] .hc-icon { color: var(--hc-on); background: color-mix(in srgb, var(--hc-on) 14%, transparent); }
-.hc-badge[data-kind='sun'] { color: var(--hc-muted); font-weight: 500; font-variant-numeric: tabular-nums; }
+/* Amber means "on" only; updates take the brand accent. */
+.hc-badge[data-kind='update'] .hc-icon { color: var(--hc-accent); background: color-mix(in srgb, var(--hc-accent) 14%, transparent); }
+/* Sun times are ambient info, not status: quiet text pushed to the right of the alerts. */
+.hc-badge[data-kind='sun'] { color: var(--hc-muted); font-weight: 500; font-variant-numeric: tabular-nums; background: transparent; border-color: transparent; box-shadow: none; padding-inline: 6px; }
+.hc-badge[data-kind='sun'] .hc-icon { color: var(--hc-muted); background: transparent; }
+.hc-badge[data-kind='sun']:hover { color: var(--hc-text); background: var(--hc-surface-2); box-shadow: none; transform: none; }
+.hc-badge[data-kind='sun'] + .hc-badge[data-kind='sun'] { margin-left: -4px; }
+.hc-badge:not([data-kind='sun']) + .hc-badge[data-kind='sun'] { margin-left: auto; }
 .hc-badge-text { min-width: 0; overflow-wrap: break-word; }
 .hc-badge-label { font-weight: 650; margin-right: 6px; }
 
