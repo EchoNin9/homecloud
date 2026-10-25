@@ -9,6 +9,8 @@ FMT='{{slice .Name 1}} {"state":{{json .State.Status}},"attributes":{"friendly_n
 while :; do
   # shellcheck disable=SC2046
   docker inspect --format "$FMT" $(docker ps -aq --filter label=com.docker.compose.project) | while read -r name body; do
+    # Compose renames the old container to <12 hex>_<name> while recreating it; that's not a service.
+    echo "$name" | grep -Eq '^[0-9a-f]{12}_' && continue
     id=$(echo "$name" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9\n' '_')
     wget -q -O /dev/null --header "Authorization: Bearer $HA_TOKEN" --header "Content-Type: application/json" \
       --post-data "$body" "$HA_URL/api/states/sensor.docker_$id" || echo "push failed: $name" >&2

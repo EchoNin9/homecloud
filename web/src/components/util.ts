@@ -43,9 +43,11 @@ export interface ViewPrefs {
   /** Saved filter texts, newest first, at most MAX_QUERIES. */
   queries: string[];
   showHidden: boolean;
+  /** With group 'custom': show only this group ('' = all groups). */
+  only: string;
 }
 
-export const DEFAULT_PREFS: ViewPrefs = { sort: 'name', group: 'domain', favs: [], hidden: [], groups: {}, queries: [], showHidden: false };
+export const DEFAULT_PREFS: ViewPrefs = { sort: 'name', group: 'domain', favs: [], hidden: [], groups: {}, queries: [], showHidden: false, only: '' };
 export const MAX_QUERIES = 15;
 
 /** Add q to the saved list (newest first, no duplicates). Null when full. */
@@ -80,6 +82,12 @@ export function organize(entities: Entity[], filter: string, p: ViewPrefs): Sect
 }
 
 function grouped(shown: Entity[], p: ViewPrefs): Section[] {
+  if (p.group === 'custom' && p.only) {
+    // One group on its own: every member, favourites included, nothing else.
+    const ids = new Set(p.groups[p.only] ?? []);
+    const list = shown.filter((e) => ids.has(e.entity_id));
+    return list.length ? [[`grp:${p.only}`, p.only, list]] : [];
+  }
   const favs = new Set(p.favs);
   const out: Section[] = [];
   const fav = shown.filter((e) => favs.has(e.entity_id));
