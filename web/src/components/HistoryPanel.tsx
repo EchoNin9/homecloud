@@ -1,13 +1,28 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import type { Entity, History, HomeCloudClient } from '../client';
 import { DAY_MS as DAY, RANGES, historyModel, isActive, type Model, type Range } from './history';
-import { errorMessage, friendlyName } from './util';
+import { domainOf, errorMessage, friendlyName } from './util';
 
-const W = 600;
+/** Domains whose "on" is amber on tiles; their charts match. */
+const AMBER = new Set(['light', 'switch', 'fan', 'sun']);
+
 const H = 180;
-const PAD = { l: 44, r: 8, t: 8, b: 22 };
-const PW = W - PAD.l - PAD.r;
+const PAD = { l: 56, r: 8, t: 8, b: 22 };
 const PH = H - PAD.t - PAD.b;
+
+/** Chart width in CSS px, so text stays 11px on phones instead of scaling down with the SVG. */
+function useWidth(fallback = 600) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [w, setW] = useState(fallback);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(([e]) => e && setW(Math.max(240, Math.round(e.contentRect.width))));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return [ref, w] as const;
+}
 
 const fmtTime = (t: number, long: boolean) =>
   new Date(t).toLocaleString(undefined, long ? { year: 'numeric', month: 'short', day: 'numeric' } : { weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false });
@@ -17,16 +32,13 @@ interface Props {
   client: HomeCloudClient;
   homeId: string;
   entity: Entity;
-  onClose: () => void;
 }
 
 /** History of one entity: 24 h / 7 d from raw changes, 30 d / 15 mo from daily rollups. */
-export function HistoryDialog({ client, homeId, entity, onClose }: Props) {
-  const ref = useRef<HTMLDialogElement>(null);
+export function HistoryPanel({ client, homeId, entity }: Props) {
   const [range, setRange] = useState<Range>('24h');
   const [data, setData] = useState<{ range: Range; h: History } | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  useEffect(() => ref.current?.showModal(), []);
   useEffect(() => {
     let live = true;
     const { res, ms } = RANGES[range];
@@ -45,12 +57,14 @@ export function HistoryDialog({ client, homeId, entity, onClose }: Props) {
   const name = friendlyName(entity);
 
   return (
-    <dialog ref={ref} className="hc-dialog hc-history" onClose={onClose} aria-labelledby="hc-hist-title">
-      <h2 id="hc-hist-title">{name}</h2>
-      <div className="hc-row" role="group" aria-label="Range">
-        {(Object.keys(RANGES) as Range[]).map((r) => (
-          <button key={r} type="button" className="hc-btn hc-range-btn" aria-pressed={r === range} onClick={() => setRange(r)}>{RANGES[r].label}</button>
-        ))}
+    <section className="hc-history" data-tone={AMBER.has(domainOf(entity.entity_id)) ? 'on' : undefined} aria-labelledby="hc-hist-title">
+      <div className="hc-history-head">
+        <h3 id="hc-hist-title">History</h3>
+        <div className="hc-seg" role="group" aria-label="Range">
+          {(Object.keys(RANGES) as Range[]).map((r) => (
+            <button key={r} type="button" aria-pressed={r === range} onClick={() => setRange(r)}>{RANGES[r].label}</button>
+          ))}
+        </div>
       </div>
       <div className="hc-chart-wrap" aria-busy={loading || undefined}>
         {err ? <p className="hc-muted">Couldn't load history: {err}</p>
@@ -60,40 +74,49 @@ export function HistoryDialog({ client, homeId, entity, onClose }: Props) {
               ? 'No daily summaries yet. They are built nightly, just after midnight, from recorded changes, so the first appears the day after history starts.'
               : 'No history yet. Changes are recorded from when history was first deployed; this entity hasn\'t changed since.'}</p>}
       </div>
-      <form method="dialog" className="hc-dialog-actions">
-        <button className="hc-btn">Close</button>
-      </form>
-    </dialog>
+    </section>
   );
 }
 
 function Chart({ model, unit, long, name }: { model: Exclude<Model, { kind: 'empty' }>; unit: string; long: boolean; name: string }) {
   const [hover, setHover] = useState<number | null>(null);
+  const [wrap, W] = useWidth();
+  const padL = model.kind === 'timeline' ? PAD.r : PAD.l; // no value axis on timelines
+  const PW = W - padL - PAD.r;
   const daily = model.kind === 'band' || model.kind === 'bars';
   const x0 = daily ? model.days[0]!.t - DAY / 2 : model.from;
   const x1 = daily ? model.days[model.days.length - 1]!.t + DAY / 2 : model.to;
-  const x = (t: number) => PAD.l + ((t - x0) / Math.max(1, x1 - x0)) * PW;
+  const x = (t: number) => padL + ((t - x0) / Math.max(1, x1 - x0)) * PW;
   let [lo, hi] = model.kind === 'bars' ? [0, 24] : model.kind === 'timeline' ? [0, 1] : [model.min, model.max];
   if (hi - lo < 1e-9) [lo, hi] = [lo - 1, hi + 1];
   const y = (v: number) => PAD.t + (1 - (v - lo) / (hi - lo)) * PH;
 
   const onMove = (e: PointerEvent<SVGSVGElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
-    setHover(x0 + (((e.clientX - r.left) / r.width) * W - PAD.l) / PW * (x1 - x0));
+    setHover(x0 + (((e.clientX - r.left) / r.width) * W - padL) / PW * (x1 - x0));
   };
-  const tip = hover === null ? null : tooltip(model, hover, unit, long);
+  // Raw charts: the part of the window before the first recorded state is "no data", not "off".
+  const dataFrom = model.kind === 'line' ? model.pts[0]!.t : model.kind === 'timeline' ? model.segs[0]!.a : x0;
+  const noData = dataFrom - x0 > (x1 - x0) * 0.01;
+  const tip = hover === null ? null : hover < dataFrom ? 'No data yet' : tooltip(model, hover, unit, long);
 
   return (
     <>
-      <div className="hc-chart">
+      <div className="hc-chart" ref={wrap}>
         <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${name} history chart`} onPointerMove={onMove} onPointerLeave={() => setHover(null)}>
           {model.kind !== 'timeline' && [lo, (lo + hi) / 2, hi].map((v) => (
             <g key={v}>
-              <line x1={PAD.l} x2={W - PAD.r} y1={y(v)} y2={y(v)} className="hc-grid" />
-              <text x={PAD.l - 6} y={y(v) + 4} textAnchor="end" className="hc-axis">{fmtNum(v)}{model.kind === 'bars' ? 'h' : ''}</text>
+              <line x1={padL} x2={W - PAD.r} y1={y(v)} y2={y(v)} className="hc-gridline" />
+              <text x={padL - 6} y={y(v) + 4} textAnchor="end" className="hc-axis">{fmtNum(v)}{model.kind === 'bars' ? ' h' : v === hi && unit ? ` ${unit}` : ''}</text>
             </g>
           ))}
-          <text x={PAD.l} y={H - 6} className="hc-axis">{fmtTime(daily ? model.days[0]!.t : x0, long)}</text>
+          {noData && (
+            <g>
+              <rect x={x(x0)} width={x(dataFrom) - x(x0)} y={PAD.t} height={PH} className="hc-nodata" />
+              {x(dataFrom) - x(x0) > 90 && <text x={(x(x0) + x(dataFrom)) / 2} y={PAD.t + PH / 2 + 4} textAnchor="middle" className="hc-axis">No data yet</text>}
+            </g>
+          )}
+          <text x={padL} y={H - 6} className="hc-axis">{fmtTime(daily ? model.days[0]!.t : x0, long)}</text>
           <text x={W - PAD.r} y={H - 6} textAnchor="end" className="hc-axis">{fmtTime(daily ? model.days[model.days.length - 1]!.t : x1, long)}</text>
 
           {model.kind === 'line' && (

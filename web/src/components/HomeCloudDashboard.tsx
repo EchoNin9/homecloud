@@ -1,10 +1,13 @@
+import { mdiAlertCircleOutline, mdiDocker, mdiDotsVertical, mdiDoorOpen, mdiHarddisk, mdiMagnify, mdiMenu, mdiPackageUp, mdiWeatherSunsetDown, mdiWeatherSunsetUp } from '@mdi/js';
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { Entity, Home, HomeCloudClient } from '../client';
 import { EntityCard, type Action } from './EntityCard';
-import { HistoryDialog } from './HistoryDialog';
 import { isTracked } from './history';
+import { Icon } from './icons';
+import { MoreInfo, UpdateBody } from './MoreInfo';
+import { Sidebar } from './Sidebar';
 import { usePoll } from './usePoll';
-import { DEFAULT_PREFS, MAX_QUERIES, domainOf, errorMessage, formatLastSeen, organize, saveQuery, sunTimes, updateInfo, warnings, type ViewPrefs } from './util';
+import { DEFAULT_PREFS, MAX_QUERIES, domainOf, errorMessage, formatLastSeen, friendlyName, organize, saveQuery, sunTimes, updateInfo, warnings, type ViewPrefs } from './util';
 import './dashboard.css';
 
 export interface HomeCloudDashboardProps {
@@ -56,42 +59,28 @@ function usePrefs(homeId: string | undefined) {
   return [prefs, update] as const;
 }
 
-/** Collapsible nav shade; open/closed is remembered for the browser session. */
-function Shade({ id, title, children }: { id: string; title: React.ReactNode; children: React.ReactNode }) {
-  const key = `hc.shade.${id}`;
-  const [open, setOpen] = useState(() => {
+// ponytail: per-viewer convenience, so plain localStorage.
+function useCollapsed() {
+  const [v, setV] = useState(() => {
     try {
-      return sessionStorage.getItem(key) === '1';
+      return localStorage.getItem('hc.side') === '1';
     } catch {
       return false;
     }
   });
-  return (
-    <details
-      className="hc-shade"
-      open={open}
-      onToggle={(e) => {
-        const o = (e.currentTarget as HTMLDetailsElement).open;
-        setOpen(o);
-        try {
-          sessionStorage.setItem(key, o ? '1' : '0');
-        } catch {
-          /* session-only anyway */
-        }
-      }}
-    >
-      <summary className="hc-shade-title">{title}</summary>
-      <div className="hc-shade-body">{children}</div>
-    </details>
-  );
+  const toggle = () =>
+    setV((c) => {
+      try {
+        localStorage.setItem('hc.side', c ? '0' : '1');
+      } catch {
+        /* this session only */
+      }
+      return !c;
+    });
+  return [v, toggle] as const;
 }
 
-const HA_VIEWS: Array<{ label: string; group: ViewPrefs['group']; sort: ViewPrefs['sort'] }> = [
-  { label: 'None', group: 'none', sort: 'name' },
-  { label: 'By type', group: 'domain', sort: 'name' },
-  { label: 'By area', group: 'area', sort: 'name' },
-  { label: 'Recently changed', group: 'none', sort: 'recent' },
-];
+const ALERT_ICON = { door: mdiDoorOpen, service: mdiDocker, drive: mdiHarddisk, update: mdiPackageUp };
 
 const toggle = (list: string[], id: string) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
 
@@ -102,12 +91,14 @@ function toggleInGroup(groups: Record<string, string[]>, name: string, id: strin
   return next.length ? { ...rest, [name]: next } : rest;
 }
 
+
 export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, onSignOut }: HomeCloudDashboardProps) {
   const [homes, setHomes] = useState<Home[] | null>(null);
   const [selected, setSelected] = useState<string | undefined>(pinnedHome);
   const [entities, setEntities] = useState<Entity[] | null>(null);
   const [historyGlobs, setHistoryGlobs] = useState<string[]>([]);
-  const [historyFor, setHistoryFor] = useState<Entity | null>(null);
+  const [infoFor, setInfoFor] = useState<string | null>(null);
+  const [updatesOpen, setUpdatesOpen] = useState(false);
   const [patches, setPatches] = useState<Record<string, Patch>>({});
   const [busy, setBusy] = useState<Record<string, number>>({});
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -120,11 +111,13 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
   const searchId = useId();
   const [prefs, setPrefs] = usePrefs(pinnedHome ?? selected);
   const [navOpen, setNavOpen] = useState(false);
+  const [collapsed, toggleCollapsed] = useCollapsed();
   const [selecting, setSelecting] = useState(false);
   const [picked, setPicked] = useState<string[]>([]);
   const [bulkGroup, setBulkGroup] = useState('');
   const groupListId = useId();
   const navId = useId();
+  const menuRef = useRef<HTMLDetailsElement>(null);
 
   useEffect(() => {
     if (pinnedHome) setSelected(pinnedHome);
@@ -140,7 +133,7 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
       const r = await client.listEntities(id);
       if (id === (pinnedHome ?? selectedRef.current ?? id)) {
         setEntities(r.entities);
-        setHistoryGlobs(r.historyEntities ?? []); // absent on older APIs: no history buttons
+        setHistoryGlobs(r.historyEntities ?? []); // absent on older APIs: no history
       }
     },
     `${pinnedHome ?? selected ?? ''}`,
@@ -184,7 +177,7 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
         }
       } catch (e) {
         if (latest()) dropPatch();
-        pushToast(`Couldn't ${action.label} ${entity.attributes.friendly_name ?? eid}: ${errorMessage(e)}`);
+        pushToast(`Couldn't ${action.label} ${friendlyName(entity)}: ${errorMessage(e)}`);
       } finally {
         setBusy((b) => {
           const n = (b[eid] ?? 1) - 1;
@@ -196,16 +189,20 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
     [client, pushToast, refresh],
   );
 
-  const groups = useMemo(() => {
-    const merged = (entities ?? []).map((e) => {
-      const p = patches[e.entity_id];
-      return p ? { ...e, state: p.state ?? e.state, attributes: { ...e.attributes, ...p.attributes } } : e;
-    });
-    return organize(merged, filter, prefs);
-  }, [entities, patches, filter, prefs]);
+  const merged = useMemo(
+    () =>
+      (entities ?? []).map((e) => {
+        const p = patches[e.entity_id];
+        return p ? { ...e, state: p.state ?? e.state, attributes: { ...e.attributes, ...p.attributes } } : e;
+      }),
+    [entities, patches],
+  );
+  const groups = useMemo(() => organize(merged, filter, prefs), [merged, filter, prefs]);
   const alerts = useMemo(() => warnings(entities ?? []), [entities]);
-  const [updateFor, setUpdateFor] = useState<Entity | null>(null);
+  const problems = alerts.filter((w) => w.kind !== 'update');
+  const updates = alerts.filter((w) => w.kind === 'update');
   const sun = useMemo(() => sunTimes(entities ?? []), [entities]);
+  const info = infoFor ? merged.find((e) => e.entity_id === infoFor) : undefined;
   const shownIds = groups.flatMap(([, , list]) => list.map((e) => e.entity_id));
   const stopSelecting = () => {
     setSelecting(false);
@@ -236,27 +233,7 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
       setQueryMsg('');
     } else setQueryMsg(`Limit is ${MAX_QUERIES}. Delete one first.`);
   };
-  const goTo = (id: string) => {
-    setNavOpen(false);
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-  const goToEntity = (entityId: string) => {
-    const el = document.getElementById(`hc-e-${entityId}`);
-    if (!el) {
-      setFilter(entityId); // hidden or filtered out: narrow the view to it instead
-      return;
-    }
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    el.classList.remove('hc-flash');
-    void el.offsetWidth; // restart the animation
-    el.classList.add('hc-flash');
-  };
-  useEffect(() => {
-    if (!navOpen) return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setNavOpen(false);
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [navOpen]);
+  const closeNav = useCallback(() => setNavOpen(false), []);
 
   const groupNames = useMemo(() => Object.keys(prefs.groups).sort((a, b) => a.localeCompare(b)), [prefs.groups]);
   const hiddenCount = useMemo(() => {
@@ -272,360 +249,262 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
 
   const controlsDisabled = home ? !home.online : false;
   const loading = homes === null && !error;
+  const multiHome = !pinnedHome && (homes?.length ?? 0) > 1;
 
   return (
-    <section className="hc-dash" aria-label="homecloud dashboard">
-      <div className="hc-topbar">
-        <span className="hc-brand">homecloud</span>
-        {(sun.rise || sun.set) && (
-          <span className="hc-sun">
+    <div className="hc-dash" data-collapsed={collapsed || undefined}>
+      <Sidebar
+        id={navId}
+        open={navOpen}
+        onClose={closeNav}
+        collapsed={collapsed}
+        onToggleCollapsed={toggleCollapsed}
+        prefs={prefs}
+        onView={(v) => {
+          setPrefs({ group: v.group, sort: v.sort });
+          closeNav();
+          window.scrollTo({ top: 0 });
+        }}
+        sections={groups.map(([key, title, list]): [string, string, number] => [sectionId(key), title, list.length])}
+        onJump={(id) => {
+          closeNav();
+          document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }}
+        groups={groupNames.map((g): [string, number] => [g, prefs.groups[g]!.length])}
+        onOpenGroup={(g) => {
+          setPrefs({ group: 'custom', sort: 'name' });
+          closeNav();
+          setJumpTo(sectionId(`grp:${g}`));
+        }}
+        onRenameGroup={(from, to) => {
+          if (prefs.groups[to]) return;
+          const { [from]: ids, ...rest } = prefs.groups;
+          setPrefs({ groups: { ...rest, [to]: ids! } });
+        }}
+        onDeleteGroup={(g) => {
+          const { [g]: _gone, ...rest } = prefs.groups;
+          setPrefs({ groups: rest });
+        }}
+        filter={filter}
+        onSaveQuery={onSaveQuery}
+        queryMsg={queryMsg}
+        onRunQuery={(q) => {
+          setFilter(q);
+          closeNav();
+        }}
+        onDeleteQuery={(q) => {
+          setPrefs({ queries: prefs.queries.filter((x) => x !== q) });
+          setQueryMsg('');
+        }}
+        updates={updates.length}
+        onUpdates={() => {
+          closeNav();
+          setUpdatesOpen(true);
+        }}
+        onSignOut={onSignOut}
+      />
+
+      <main className="hc-main">
+        <header className="hc-toolbar">
+          <button type="button" className="hc-icon-btn hc-menu-btn" aria-label="Open navigation" aria-expanded={navOpen} aria-controls={navId} onClick={() => setNavOpen(true)}>
+            <Icon path={mdiMenu} />
+          </button>
+          {multiHome ? (
+            <>
+              <label htmlFor={`${homeLabelId}-sel`} className="hc-sr">Home</label>
+              <select id={`${homeLabelId}-sel`} className="hc-select hc-title-select" value={selected ?? ''} onChange={(e) => switchHome(e.target.value)}>
+                {homes?.map((h) => <option key={h.homeId} value={h.homeId}>{h.homeId}</option>)}
+              </select>
+            </>
+          ) : (
+            <h1 className="hc-title">{selected ?? (loading ? 'homecloud' : 'No home')}</h1>
+          )}
+          {home && (
+            <span
+              className="hc-status"
+              data-online={home.online || undefined}
+              title={home.lastSeenTs ? `Last seen ${new Date(home.lastSeenTs).toLocaleString()}` : undefined}
+            >
+              <span className="hc-dot" aria-hidden="true" />
+              {home.online ? 'Online' : 'Offline'}
+              <span className="hc-status-seen"> · {formatLastSeen(home.lastSeenTs)}</span>
+            </span>
+          )}
+          <div className="hc-search">
+            <label htmlFor={searchId} className="hc-sr">Search entities</label>
+            <Icon path={mdiMagnify} size={20} />
+            <input id={searchId} type="search" className="hc-input" placeholder="Search" value={filter} onChange={(e) => setFilter(e.target.value)} />
+          </div>
+          <details className="hc-menu hc-overflow" ref={menuRef}>
+            <summary className="hc-icon-btn" aria-label="More options"><Icon path={mdiDotsVertical} /></summary>
+            <div className="hc-menu-body hc-menu-right" onClick={(e) => (e.target as HTMLElement).closest('button') && menuRef.current?.removeAttribute('open')}>
+              <button type="button" className="hc-menu-item" onClick={() => (selecting ? stopSelecting() : setSelecting(true))}>
+                {selecting ? 'Done selecting' : 'Select entities'}
+              </button>
+              {hiddenCount > 0 && (
+                <label className="hc-menu-item hc-check">
+                  <input type="checkbox" checked={prefs.showHidden} onChange={(e) => setPrefs({ showHidden: e.target.checked })} />
+                  Show hidden ({hiddenCount})
+                </label>
+              )}
+            </div>
+          </details>
+        </header>
+
+        {(problems.length > 0 || updates.length > 0 || sun.rise || sun.set) && (
+          <section id={sectionId('_warn')} className="hc-badges" aria-label="Status">
+            {problems.map((w) => (
+              <button key={w.entity.entity_id} type="button" className="hc-badge" data-kind={w.kind} onClick={() => setInfoFor(w.entity.entity_id)}>
+                <Icon path={ALERT_ICON[w.kind]} size={18} />
+                <span className="hc-badge-text">
+                  <span className="hc-badge-label">{{ door: 'Door open', service: 'Service down', drive: 'Drive hot', update: '' }[w.kind]}</span>
+                  {w.text}
+                </span>
+              </button>
+            ))}
+            {updates.length > 0 && (
+              <button type="button" className="hc-badge" data-kind="update" onClick={() => (updates.length === 1 ? setInfoFor(updates[0]!.entity.entity_id) : setUpdatesOpen(true))}>
+                <Icon path={mdiPackageUp} size={18} />
+                <span className="hc-badge-text">{updates.length === 1 ? updates[0]!.text : `${updates.length} updates available`}</span>
+              </button>
+            )}
             {sun.rise && (
-              <span title="Today’s sunrise">
-                <span aria-hidden="true">☀︎</span> sunrise {sun.rise}
+              <span className="hc-badge" data-kind="sun" title="Today’s sunrise">
+                <Icon path={mdiWeatherSunsetUp} size={18} /><span className="hc-badge-text">{sun.rise}</span>
               </span>
             )}
             {sun.set && (
-              <span title="Today’s sunset">
-                <span aria-hidden="true">☾</span> sunset {sun.set}
+              <span className="hc-badge" data-kind="sun" title="Today’s sunset">
+                <Icon path={mdiWeatherSunsetDown} size={18} /><span className="hc-badge-text">{sun.set}</span>
               </span>
             )}
-          </span>
+          </section>
         )}
-        {onSignOut && (
-          <button type="button" className="hc-link" onClick={onSignOut}>Sign out</button>
+
+        {error != null && (
+          <p className="hc-banner" role="alert">
+            <Icon path={mdiAlertCircleOutline} size={20} /> Can't reach homecloud ({errorMessage(error)}). Showing last known state; retrying…
+          </p>
         )}
-      </div>
-      <header className="hc-header">
-        <div className="hc-home">
-          <button
-            type="button"
-            className="hc-btn hc-btn-icon"
-            aria-label="Open navigation"
-            aria-expanded={navOpen}
-            aria-controls={navId}
-            onClick={() => setNavOpen(true)}
-          >
-            ☰
-          </button>
-          {pinnedHome || (homes && homes.length === 1) ? (
-            <h1 className="hc-home-name">{selected ?? 'No home'}</h1>
-          ) : (
-            <>
-              <label id={homeLabelId} htmlFor={`${homeLabelId}-sel`} className="hc-sr">Home</label>
-              <select
-                id={`${homeLabelId}-sel`}
-                className="hc-select"
-                value={selected ?? ''}
-                disabled={!homes?.length}
-                onChange={(e) => switchHome(e.target.value)}
-              >
-                {!homes?.length && <option value="">{loading ? 'Loading…' : 'No homes'}</option>}
-                {homes?.map((h) => (
-                  <option key={h.homeId} value={h.homeId}>{h.homeId}</option>
-                ))}
-              </select>
-            </>
-          )}
-          {home && (
-            <>
-              <span className={`hc-badge ${home.online ? 'hc-badge-on' : 'hc-badge-off'}`}>
-                <span className="hc-dot" aria-hidden="true" />
-                {home.online ? 'Online' : 'Offline'}
-              </span>
-              <span className="hc-meta" title={home.lastSeenTs ? new Date(home.lastSeenTs).toLocaleString() : undefined}>
-                Last seen {formatLastSeen(home.lastSeenTs)}
-              </span>
-            </>
-          )}
-        </div>
-        <div className="hc-search">
-          <label htmlFor={searchId} className="hc-sr">Filter entities</label>
-          <input
-            id={searchId}
-            type="search"
-            className="hc-input"
-            placeholder="Filter by name, id or area"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-          />
-        </div>
-      </header>
+        {home && !home.online && (
+          <p className="hc-banner hc-banner-warn"><Icon path={mdiAlertCircleOutline} size={20} /> This home is offline, so controls are disabled and values may be stale.</p>
+        )}
 
-      {navOpen && <div className="hc-backdrop" onClick={() => setNavOpen(false)} />}
-      <nav id={navId} className="hc-nav" data-open={navOpen || undefined} aria-label="Menu">
-        <div className="hc-nav-head">
-          <span>Menu</span>
-          <button type="button" className="hc-btn hc-btn-icon" aria-label="Close navigation" onClick={() => setNavOpen(false)}>×</button>
-        </div>
-        <Shade id="sections" title="On this page">
-          <ul>
-            {alerts.length > 0 && (
-              <li>
-                <button type="button" className="hc-nav-link" onClick={() => goTo(sectionId('_warn'))}>
-                  Warnings <span className="hc-count">{alerts.length}</span>
-                </button>
-              </li>
-            )}
-            {groups.map(([key, title, list]) => (
-              <li key={key}>
-                <button type="button" className="hc-nav-link" onClick={() => goTo(sectionId(key))}>
-                  {title} <span className="hc-count">{list.length}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </Shade>
-
-        <Shade id="queries" title={<>Saved Queries <span className="hc-count">{prefs.queries.length}/{MAX_QUERIES}</span></>}>
-          <button type="button" className="hc-btn hc-nav-action" disabled={!filter.trim()} onClick={onSaveQuery}>
-            {filter.trim() ? <>Save “{filter.trim()}”</> : 'Type a filter to save it'}
-          </button>
-          {queryMsg && <p className="hc-meta" role="status">{queryMsg}</p>}
-          <ul>
-            {prefs.queries.map((q) => (
-              <li key={q} className="hc-nav-row">
-                <button type="button" className="hc-nav-link" aria-current={q === filter.trim() || undefined} onClick={() => { setFilter(q); setNavOpen(false); }}>
-                  {q}
-                </button>
-                <button type="button" className="hc-icon-btn" aria-label={`Delete saved query ${q}`} onClick={() => { setPrefs({ queries: prefs.queries.filter((x) => x !== q) }); setQueryMsg(''); }}>×</button>
-              </li>
-            ))}
-          </ul>
-        </Shade>
-
-        <Shade id="groups" title="Groups">
-          <Shade id="groups.mine" title={<>My Groups <span className="hc-count">{groupNames.length}</span></>}>
-            {groupNames.length === 0 ? (
-              <p className="hc-meta">None yet. Use Select or a card's Groups menu.</p>
-            ) : (
-              <ul>
-                {groupNames.map((g) => (
-                  <li key={g} className="hc-nav-row">
-                    <button
-                      type="button"
-                      className="hc-nav-link"
-                      onClick={() => {
-                        setPrefs({ group: 'custom' });
-                        setNavOpen(false);
-                        setJumpTo(sectionId(`grp:${g}`));
-                      }}
-                    >
-                      {g} <span className="hc-count">{prefs.groups[g].length}</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="hc-icon-btn"
-                      aria-label={`Rename group ${g}`}
-                      title="Rename"
-                      onClick={() => {
-                        const n = window.prompt('Rename group', g)?.trim();
-                        if (n && n !== g && !prefs.groups[n]) {
-                          const { [g]: ids, ...rest } = prefs.groups;
-                          setPrefs({ groups: { ...rest, [n]: ids } });
-                        }
-                      }}
-                    >
-                      ✎
-                    </button>
-                    <button
-                      type="button"
-                      className="hc-icon-btn"
-                      aria-label={`Delete group ${g}`}
-                      title="Delete"
-                      onClick={() => {
-                        const { [g]: _gone, ...rest } = prefs.groups;
-                        setPrefs({ groups: rest });
-                      }}
-                    >
-                      ×
-                    </button>
-                  </li>
+        {loading || (selected && entities === null && !error) ? (
+          <p className="hc-empty" role="status">Loading…</p>
+        ) : homes && homes.length === 0 ? (
+          <p className="hc-empty">No homes yet. Once your NAS bridge connects, it will appear here.</p>
+        ) : groups.length === 0 && entities ? (
+          <p className="hc-empty">{filter ? `No entities match “${filter}”.` : 'This home has not reported any entities yet.'}</p>
+        ) : (
+          groups.map(([key, title, list]) => (
+            <section key={key} className="hc-section" aria-labelledby={sectionId(key)}>
+              <h2 id={sectionId(key)} className="hc-section-title">
+                {title} <span className="hc-count">{list.length}</span>
+              </h2>
+              <ul className="hc-tiles">
+                {list.map((e) => (
+                  <EntityCard
+                    key={e.entity_id}
+                    entity={e}
+                    disabled={controlsDisabled}
+                    busy={!!busy[e.entity_id]}
+                    onAction={onAction}
+                    onOpen={() => setInfoFor(e.entity_id)}
+                    hidden={prefs.hidden.includes(e.entity_id)}
+                    selecting={selecting}
+                    selected={picked.includes(e.entity_id)}
+                    onSelect={() => setPicked((p) => toggle(p, e.entity_id))}
+                  />
                 ))}
               </ul>
-            )}
-          </Shade>
-          <Shade id="groups.ha" title="HA Groups">
-            <ul>
-              {HA_VIEWS.map((v) => (
-                <li key={v.label}>
-                  <button
-                    type="button"
-                    className="hc-nav-link"
-                    aria-current={(prefs.group === v.group && prefs.sort === v.sort) || undefined}
-                    onClick={() => {
-                      setPrefs({ group: v.group, sort: v.sort });
-                      setNavOpen(false);
-                    }}
-                  >
-                    {v.label}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </Shade>
-        </Shade>
-      </nav>
-
-      {alerts.length > 0 && (
-        <section id={sectionId('_warn')} className="hc-warnings" aria-label="Warnings">
-          {alerts.map((w) => (
-            <button key={w.entity.entity_id} type="button" className="hc-warn" data-kind={w.kind} onClick={() => (w.kind === 'update' ? setUpdateFor(w.entity) : goToEntity(w.entity.entity_id))}>
-              <span className="hc-warn-kind">{{ door: 'Door open', service: 'Service down', drive: 'Drive hot', update: 'Update' }[w.kind]}</span>
-              <span className="hc-warn-text">{w.text}</span>
-            </button>
-          ))}
-        </section>
-      )}
-
-      <div className="hc-toolbar">
-        <label className="hc-field">
-          <span>Sort</span>
-          <select className="hc-select" value={prefs.sort} onChange={(e) => setPrefs({ sort: e.target.value as ViewPrefs['sort'] })}>
-            <option value="name">Name</option>
-            <option value="recent">Recently changed</option>
-          </select>
-        </label>
-        <label className="hc-field">
-          <span>Group</span>
-          <select className="hc-select" value={prefs.group} onChange={(e) => setPrefs({ group: e.target.value as ViewPrefs['group'] })}>
-            <option value="domain">By type</option>
-            <option value="area">By area</option>
-            <option value="custom">My Groups</option>
-            <option value="none">None</option>
-          </select>
-        </label>
-        <button type="button" className="hc-btn" aria-pressed={selecting} onClick={() => (selecting ? stopSelecting() : setSelecting(true))}>
-          {selecting ? 'Done selecting' : 'Select'}
-        </button>
-        {hiddenCount > 0 && (
-          <label className="hc-field hc-check">
-            <input type="checkbox" checked={prefs.showHidden} onChange={(e) => setPrefs({ showHidden: e.target.checked })} />
-            <span>Show hidden ({hiddenCount})</span>
-          </label>
+            </section>
+          ))
         )}
-      </div>
 
-      {error != null && (
-        <p className="hc-banner" role="alert">
-          Can't reach homecloud ({errorMessage(error)}). Showing last known state; retrying…
-        </p>
-      )}
-      {home && !home.online && (
-        <p className="hc-banner hc-banner-warn">This home is offline, so controls are disabled and values may be stale.</p>
-      )}
+        {selecting && (
+          <div className="hc-bulk" role="region" aria-label="Bulk actions">
+            <span className="hc-bulk-count">{picked.length} selected</span>
+            <button type="button" className="hc-btn" onClick={() => setPicked((p) => addAll(p, shownIds))}>
+              Select all shown ({shownIds.length})
+            </button>
+            <button type="button" className="hc-btn" disabled={!picked.length} onClick={() => setPicked([])}>Clear</button>
+            <span className="hc-bulk-group">
+              <input
+                className="hc-input"
+                list={groupListId}
+                placeholder="Group name"
+                aria-label="Group name for selected"
+                maxLength={40}
+                value={bulkGroup}
+                onChange={(e) => setBulkGroup(e.target.value)}
+              />
+              <datalist id={groupListId}>
+                {groupNames.map((g) => <option key={g} value={g} />)}
+              </datalist>
+              <button type="button" className="hc-btn hc-btn-primary" disabled={!picked.length || !bulkGroup.trim()} onClick={() => bulkToGroup(true)}>Add to group</button>
+              <button type="button" className="hc-btn" disabled={!picked.length || !prefs.groups[bulkGroup.trim()]} onClick={() => bulkToGroup(false)}>Remove</button>
+            </span>
+            <button type="button" className="hc-btn" disabled={!picked.length} onClick={() => setPrefs({ favs: addAll(prefs.favs, picked) })}>Favourite</button>
+            <button type="button" className="hc-btn" disabled={!picked.length} onClick={() => setPrefs({ hidden: addAll(prefs.hidden, picked) })}>Hide</button>
+            <button type="button" className="hc-btn" disabled={!picked.length} onClick={() => setPrefs({ hidden: dropAll(prefs.hidden, picked) })}>Unhide</button>
+            <button type="button" className="hc-btn hc-btn-primary" onClick={stopSelecting}>Done</button>
+          </div>
+        )}
+      </main>
 
-      {loading || (selected && entities === null && !error) ? (
-        <p className="hc-empty" role="status">Loading…</p>
-      ) : homes && homes.length === 0 ? (
-        <p className="hc-empty">No homes yet. Once your NAS bridge connects, it will appear here.</p>
-      ) : groups.length === 0 && entities ? (
-        <p className="hc-empty">{filter ? `No entities match “${filter}”.` : 'This home has not reported any entities yet.'}</p>
-      ) : (
-        groups.map(([key, title, list]) => (
-          <section key={key} className="hc-group" aria-labelledby={sectionId(key)}>
-            <h2 id={sectionId(key)} className="hc-group-title">
-              {title} <span className="hc-count">{list.length}</span>
-            </h2>
-            <ul className="hc-grid">
-              {list.map((e) => (
-                <EntityCard
-                  key={e.entity_id}
-                  entity={e}
-                  disabled={controlsDisabled}
-                  busy={!!busy[e.entity_id]}
-                  onAction={onAction}
-                  fav={prefs.favs.includes(e.entity_id)}
-                  hidden={prefs.hidden.includes(e.entity_id)}
-                  onToggleFav={() => setPrefs({ favs: toggle(prefs.favs, e.entity_id) })}
-                  onToggleHidden={() => setPrefs({ hidden: toggle(prefs.hidden, e.entity_id) })}
-                  selecting={selecting}
-                  selected={picked.includes(e.entity_id)}
-                  onSelect={() => setPicked((p) => toggle(p, e.entity_id))}
-                  groupNames={groupNames}
-                  inGroups={groupNames.filter((g) => prefs.groups[g].includes(e.entity_id))}
-                  onToggleGroup={(g) => setPrefs({ groups: toggleInGroup(prefs.groups, g, e.entity_id) })}
-                  onHistory={isTracked(e.entity_id, historyGlobs) ? () => setHistoryFor(e) : undefined}
-                />
-              ))}
-            </ul>
-          </section>
-        ))
+      {info && selected && (
+        <MoreInfo
+          key={info.entity_id}
+          client={client}
+          homeId={selected}
+          entity={info}
+          disabled={controlsDisabled}
+          busy={!!busy[info.entity_id]}
+          onAction={onAction}
+          tracked={isTracked(info.entity_id, historyGlobs)}
+          fav={prefs.favs.includes(info.entity_id)}
+          hidden={prefs.hidden.includes(info.entity_id)}
+          onToggleFav={() => setPrefs({ favs: toggle(prefs.favs, info.entity_id) })}
+          onToggleHidden={() => setPrefs({ hidden: toggle(prefs.hidden, info.entity_id) })}
+          groupNames={groupNames}
+          inGroups={groupNames.filter((g) => prefs.groups[g]!.includes(info.entity_id))}
+          onToggleGroup={(g) => setPrefs({ groups: toggleInGroup(prefs.groups, g, info.entity_id) })}
+          onClose={() => setInfoFor(null)}
+        />
       )}
-
-      {selecting && (
-        <div className="hc-bulk" role="region" aria-label="Bulk actions">
-          <span className="hc-bulk-count">{picked.length} selected</span>
-          <button type="button" className="hc-btn" onClick={() => setPicked((p) => addAll(p, shownIds))}>
-            Select all shown ({shownIds.length})
-          </button>
-          <button type="button" className="hc-btn" disabled={!picked.length} onClick={() => setPicked([])}>Clear</button>
-          <span className="hc-bulk-group">
-            <input
-              className="hc-input"
-              list={groupListId}
-              placeholder="Group name"
-              aria-label="Group name for selected"
-              maxLength={40}
-              value={bulkGroup}
-              onChange={(e) => setBulkGroup(e.target.value)}
-            />
-            <datalist id={groupListId}>
-              {groupNames.map((g) => <option key={g} value={g} />)}
-            </datalist>
-            <button type="button" className="hc-btn hc-btn-primary" disabled={!picked.length || !bulkGroup.trim()} onClick={() => bulkToGroup(true)}>Add to group</button>
-            <button type="button" className="hc-btn" disabled={!picked.length || !prefs.groups[bulkGroup.trim()]} onClick={() => bulkToGroup(false)}>Remove</button>
-          </span>
-          <button type="button" className="hc-btn" disabled={!picked.length} onClick={() => setPrefs({ favs: addAll(prefs.favs, picked) })}>Favourite</button>
-          <button type="button" className="hc-btn" disabled={!picked.length} onClick={() => setPrefs({ hidden: addAll(prefs.hidden, picked) })}>Hide</button>
-          <button type="button" className="hc-btn" disabled={!picked.length} onClick={() => setPrefs({ hidden: dropAll(prefs.hidden, picked) })}>Unhide</button>
-          <button type="button" className="hc-btn" onClick={stopSelecting}>Done</button>
-        </div>
-      )}
-
-      {historyFor && selected && <HistoryDialog client={client} homeId={selected} entity={historyFor} onClose={() => setHistoryFor(null)} />}
-      {updateFor && <UpdateDialog entity={updateFor} onClose={() => setUpdateFor(null)} />}
+      {updatesOpen && <UpdatesDialog updates={updates.map((w) => w.entity)} onClose={() => setUpdatesOpen(false)} />}
 
       <div className="hc-toasts" role="region" aria-label="Notifications" aria-live="assertive">
         {toasts.map((t) => (
-          <div key={t.id} className="hc-toast" role="alert">
+          <div key={t.id} className="hc-toast">
             <span>{t.text}</span>
             <button type="button" className="hc-toast-x" aria-label="Dismiss" onClick={() => setToasts((x) => x.filter((y) => y.id !== t.id))}>×</button>
           </div>
         ))}
       </div>
-    </section>
+    </div>
   );
 }
 
-/** How-to for one available image update. Notify only: the NAS is upgraded by hand, never from the cloud. */
-function UpdateDialog({ entity, onClose }: { entity: Entity; onClose: () => void }) {
+/** Every available update, each with its how-to. Notify only. */
+function UpdatesDialog({ updates, onClose }: { updates: Entity[]; onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
-  const [copied, setCopied] = useState(false);
-  const u = updateInfo(entity);
-  const cmd = u.steps.join('\n');
   useEffect(() => ref.current?.showModal(), []);
-  const copy = () => navigator.clipboard?.writeText(cmd).then(() => setCopied(true), () => setCopied(false));
   return (
     <dialog ref={ref} className="hc-dialog" onClose={onClose} aria-labelledby="hc-upd-title">
-      <h2 id="hc-upd-title">Update {u.service}</h2>
-      <p>
-        {u.container && u.digest ? <>A new <code>:{u.from}</code> image is published.</> : <><code>{u.from}</code> → <code>{u.to}</code></>}
-        {u.url && <> · <a href={u.url} target="_blank" rel="noreferrer">Release notes</a></>}
-      </p>
-      {u.container ? (
-        <>
-          <p className="hc-muted">
-            Back up first.{' '}
-            {!u.digest && <>In <code>docker-compose.yml</code> (NAS and repo), change the {u.service} image tag to <code>:{u.to}</code>. Then </>}
-            {u.digest ? 'Run' : 'run'} in the NAS stack folder:
-          </p>
-          <pre className="hc-cmd"><code>{cmd}</code></pre>
-        </>
-      ) : (
-        <p className="hc-muted">Install it from the device's own app or admin page (for example DSM → Update &amp; Restore).</p>
-      )}
+      <h2 id="hc-upd-title">Updates</h2>
+      {updates.length === 0 && <p className="hc-muted">Everything is up to date.</p>}
+      {updates.map((e) => (
+        <details key={e.entity_id} className="hc-update-item">
+          <summary>
+            <Icon path={mdiPackageUp} size={20} />
+            <span>{updateInfo(e).container ? updateInfo(e).service : friendlyName(e)}</span>
+          </summary>
+          <UpdateBody entity={e} />
+        </details>
+      ))}
       <form method="dialog" className="hc-dialog-actions">
-        {u.container && <button type="button" className="hc-btn" onClick={copy}>{copied ? 'Copied' : 'Copy'}</button>}
         <button className="hc-btn">Close</button>
       </form>
     </dialog>
