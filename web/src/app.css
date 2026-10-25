@@ -1,8 +1,16 @@
-:root { color-scheme: light dark; }
-body { margin: 0; background: #f5f6f8; color: #1b1f27; font: 15px/1.45 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
-@media (prefers-color-scheme: dark) { body { background: #0f1218; color: #e8ebf1; } }
-.app-center { max-width: 520px; margin: 0 auto; padding: 48px 16px; }
-.app-center code { background: rgba(127, 127, 127, 0.2); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
-.app-btn { font: inherit; padding: 10px 18px; border-radius: 8px; border: 0; background: #2563eb; color: #fff; font-weight: 600; cursor: pointer; min-height: 44px; }
-.app-btn:focus-visible, .app-link:focus-visible { outline: 3px solid #60a5fa; outline-offset: 2px; }
-.app-link { font: inherit; background: none; border: 0; color: inherit; text-decoration: underline; cursor: pointer; min-height: 44px; }
+:root { color-scheme: light dark; --app-accent: #0c7385; --app-accent-text: #ffffff; }
+body {
+  margin: 0; background: #f2f3f5; color: #12161c; -webkit-font-smoothing: antialiased;
+  font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, 'Segoe UI Variable Text', 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --app-accent: #4fc4d3; --app-accent-text: #04191d; }
+  body { background: #0c0f13; color: #e9ecf1; }
+}
+.app-center { max-width: 520px; margin: 0 auto; padding: 72px 20px; }
+.app-center h1 { margin: 0 0 12px; font-size: 1.6rem; font-weight: 650; letter-spacing: -0.02em; }
+.app-center code { background: rgba(127, 127, 127, 0.16); padding: 1px 6px; border-radius: 5px; overflow-wrap: anywhere; font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 0.9em; }
+.app-btn { font: inherit; padding: 10px 20px; border-radius: 10px; border: 0; background: var(--app-accent); color: var(--app-accent-text); font-weight: 600; cursor: pointer; min-height: 44px; box-shadow: 0 1px 2px rgb(0 0 0 / 0.12); }
+.app-btn:hover { filter: brightness(1.08); }
+.app-btn:focus-visible, .app-link:focus-visible { outline: 3px solid color-mix(in srgb, var(--app-accent) 55%, transparent); outline-offset: 2px; }
+.app-link { font: inherit; background: none; border: 0; color: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; min-height: 44px; margin-left: 8px; }
