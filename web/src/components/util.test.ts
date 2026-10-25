@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Entity } from '../client';
-import { DEFAULT_PREFS, MAX_QUERIES, organize, prettyState, saveQuery, stateText, sunTimes, updateInfo, warnings } from './util';
+import { DEFAULT_PREFS, MAX_QUERIES, groupIds, moveGroup, organize, setMembers, prettyState, saveQuery, stateText, sunTimes, updateInfo, warnings } from './util';
 
 const e = (entity_id: string, name: string, last_changed = '2026-01-01T00:00:00Z'): Entity => ({
   entity_id,
@@ -178,5 +178,32 @@ describe('organize: one group on its own', () => {
     expect(organize(ents, '', { ...p, only: 'Bed' }).map(([k, , l]) => [k, l.map((x) => x.entity_id)])).toEqual([['grp:Bed', ['light.a', 'light.b']]]);
     expect(organize(ents, '', { ...p, only: 'Gone' })).toEqual([]);
     expect(organize(ents, '', p).map(([k]) => k)).toEqual(['_fav', 'grp:Bed', 'grp:']);
+  });
+});
+
+describe('live-search groups', () => {
+  const ents = [e('light.bedroom_lamp', 'Bedroom lamp'), e('sensor.bedroom_temp', 'Bedroom temp'), e('light.desk', 'Desk')];
+  const base = { ...DEFAULT_PREFS, group: 'custom' as const, groups: { Bed: [] }, groupQueries: { Bed: 'bedroom' } };
+  const ids = (p: typeof base) => [...groupIds('Bed', ents, p)].sort();
+
+  it('members are search matches plus hand-picked, minus removed', () => {
+    expect(ids(base)).toEqual(['light.bedroom_lamp', 'sensor.bedroom_temp']);
+    const added = { ...base, ...setMembers(base, 'Bed', ['light.desk'], true, ents) } as typeof base;
+    expect(added.groups.Bed).toEqual(['light.desk']);
+    const removed = { ...added, ...setMembers(added, 'Bed', ['sensor.bedroom_temp'], false, ents) } as typeof base;
+    expect(ids(removed)).toEqual(['light.bedroom_lamp', 'light.desk']);
+    const back = { ...removed, ...setMembers(removed, 'Bed', ['sensor.bedroom_temp'], true, ents) } as typeof base;
+    expect(ids(back)).toEqual(['light.bedroom_lamp', 'light.desk', 'sensor.bedroom_temp']);
+  });
+
+  it('a group view includes hidden members', () => {
+    const p = { ...base, only: 'Bed', hidden: ['light.bedroom_lamp'] };
+    expect(organize(ents, '', p)[0]![2].map((x) => x.entity_id)).toEqual(['light.bedroom_lamp', 'sensor.bedroom_temp']);
+  });
+
+  it('a hand-picked group with nothing left goes away; rename carries the search', () => {
+    const hand = { ...DEFAULT_PREFS, groups: { G: ['light.desk'] } };
+    expect(setMembers(hand, 'G', ['light.desk'], false, ents).groups).toEqual({});
+    expect(moveGroup({ ...base, only: 'Bed' }, 'Bed', 'Sleep')).toMatchObject({ groupQueries: { Sleep: 'bedroom' }, groups: { Sleep: [] }, only: 'Sleep' });
   });
 });

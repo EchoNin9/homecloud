@@ -38,8 +38,12 @@ export interface ViewPrefs {
   group: GroupKey;
   favs: string[];
   hidden: string[];
-  /** Named custom groups: name -> entity ids. An entity can be in several. */
+  /** Named custom groups: name -> hand-picked entity ids. An entity can be in several. */
   groups: Record<string, string[]>;
+  /** Live groups: name -> search; every entity matching it is a member too. */
+  groupQueries: Record<string, string>;
+  /** Members removed by hand from a live group although they match its search. */
+  groupOut: Record<string, string[]>;
   /** Saved filter texts, newest first, at most MAX_QUERIES. */
   queries: string[];
   showHidden: boolean;
@@ -47,7 +51,7 @@ export interface ViewPrefs {
   only: string;
 }
 
-export const DEFAULT_PREFS: ViewPrefs = { sort: 'name', group: 'domain', favs: [], hidden: [], groups: {}, queries: [], showHidden: false, only: '' };
+export const DEFAULT_PREFS: ViewPrefs = { sort: 'name', group: 'domain', favs: [], hidden: [], groups: {}, queries: [], showHidden: false, only: '', groupQueries: {}, groupOut: {} };
 export const MAX_QUERIES = 15;
 
 /** Add q to the saved list (newest first, no duplicates). Null when full. */
@@ -75,6 +79,12 @@ export function organize(entities: Entity[], filter: string, p: ViewPrefs): Sect
   const hidden = new Set(p.hidden);
   const cmp = p.sort === 'recent' ? byRecent : byName;
   const matching = entities.filter((e) => matchesFilter(e, filter)).sort(cmp);
+  if (p.group === 'custom' && p.only) {
+    // One group on its own: every member, favourites and hidden ones (dimmed) included, nothing else.
+    const ids = groupIds(p.only, matching, p);
+    const list = matching.filter((e) => ids.has(e.entity_id));
+    return list.length ? [[`grp:${p.only}`, p.only, list]] : [];
+  }
   const out = grouped(matching.filter((e) => !hidden.has(e.entity_id)), p);
   const hid = matching.filter((e) => hidden.has(e.entity_id));
   if (p.showHidden && hid.length) out.push(['_hidden', 'Hidden', hid]);
@@ -82,12 +92,6 @@ export function organize(entities: Entity[], filter: string, p: ViewPrefs): Sect
 }
 
 function grouped(shown: Entity[], p: ViewPrefs): Section[] {
-  if (p.group === 'custom' && p.only) {
-    // One group on its own: every member, favourites included, nothing else.
-    const ids = new Set(p.groups[p.only] ?? []);
-    const list = shown.filter((e) => ids.has(e.entity_id));
-    return list.length ? [[`grp:${p.only}`, p.only, list]] : [];
-  }
   const favs = new Set(p.favs);
   const out: Section[] = [];
   const fav = shown.filter((e) => favs.has(e.entity_id));
@@ -99,9 +103,10 @@ function grouped(shown: Entity[], p: ViewPrefs): Section[] {
   }
   if (p.group === 'custom') {
     const names = Object.keys(p.groups).sort((a, b) => a.localeCompare(b));
-    const grouped = new Set(names.flatMap((n) => p.groups[n]));
+    const sets = new Map(names.map((n) => [n, groupIds(n, rest, p)]));
+    const grouped = new Set([...sets.values()].flatMap((x) => [...x]));
     for (const n of names) {
-      const ids = new Set(p.groups[n]);
+      const ids = sets.get(n)!;
       const list = rest.filter((e) => ids.has(e.entity_id));
       if (list.length) out.push([`grp:${n}`, n, list]);
     }
@@ -323,4 +328,51 @@ export function stateText(e: Entity, nowMs = Date.now()): string {
     default:
       return prettyState(s);
   }
+}
+
+/** Members of a group among `entities`: hand-picked ids plus live-search matches, minus ones removed by hand. */
+export function groupIds(name: string, entities: Entity[], p: ViewPrefs): Set<string> {
+  const out = new Set(p.groupOut?.[name] ?? []);
+  const q = p.groupQueries?.[name]?.trim() ?? '';
+  const ids = new Set((p.groups[name] ?? []).filter((id) => !out.has(id)));
+  if (q) for (const e of entities) if (!out.has(e.entity_id) && matchesFilter(e, q)) ids.add(e.entity_id);
+  return ids;
+}
+
+/**
+ * Prefs patch that adds (on) or removes `ids` from a group. A live-search match is removed by
+ * listing it in groupOut; anything else is a hand-picked id. A group with no ids and no search goes away.
+ */
+export function setMembers(p: ViewPrefs, name: string, ids: string[], on: boolean, entities: Entity[]): Partial<ViewPrefs> {
+  const q = p.groupQueries[name]?.trim() ?? '';
+  const byId = new Map(entities.map((e) => [e.entity_id, e]));
+  const matches = (id: string) => !!q && !!byId.get(id) && matchesFilter(byId.get(id)!, q);
+  let manual = p.groups[name] ?? [];
+  let out = p.groupOut[name] ?? [];
+  if (on) {
+    out = out.filter((id) => !ids.includes(id));
+    manual = [...new Set([...manual, ...ids.filter((id) => !matches(id))])];
+  } else {
+    manual = manual.filter((id) => !ids.includes(id));
+    out = [...new Set([...out, ...ids.filter(matches)])];
+  }
+  const { [name]: _g, ...groups } = p.groups;
+  const { [name]: _o, ...groupOut } = p.groupOut;
+  if (!manual.length && !q) {
+    const { [name]: _q, ...groupQueries } = p.groupQueries;
+    return { groups, groupOut, groupQueries };
+  }
+  return { groups: { ...groups, [name]: manual }, groupOut: out.length ? { ...groupOut, [name]: out } : groupOut };
+}
+
+/** Prefs patch that renames (to) or deletes (to = null) a group, with its search and removals. */
+export function moveGroup(p: ViewPrefs, from: string, to: string | null): Partial<ViewPrefs> {
+  const pick = <T>(r: Record<string, T>) => {
+    const { [from]: v, ...rest } = r;
+    return to && v !== undefined ? { ...rest, [to]: v } : rest;
+  };
+  return {
+    groups: pick(p.groups), groupQueries: pick(p.groupQueries), groupOut: pick(p.groupOut),
+    ...(p.only === from ? { only: to ?? '' } : {}),
+  };
 }
