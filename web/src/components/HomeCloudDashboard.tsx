@@ -1,4 +1,4 @@
-import { mdiAlertCircleOutline, mdiDocker, mdiDotsVertical, mdiDoorOpen, mdiHarddisk, mdiMagnify, mdiMenu, mdiPackageUp, mdiWeatherSunsetDown, mdiWeatherSunsetUp } from '@mdi/js';
+import { mdiAlertCircleOutline, mdiBookmarkPlusOutline, mdiCheckboxMultipleMarkedOutline, mdiDocker, mdiDotsVertical, mdiDoorOpen, mdiHarddisk, mdiMagnify, mdiMenu, mdiPackageUp, mdiWeatherSunsetDown, mdiWeatherSunsetUp } from '@mdi/js';
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { Entity, Home, HomeCloudClient } from '../client';
 import { EntityCard, type Action } from './EntityCard';
@@ -7,7 +7,7 @@ import { Icon } from './icons';
 import { MoreInfo, UpdateBody } from './MoreInfo';
 import { Sidebar } from './Sidebar';
 import { usePoll } from './usePoll';
-import { DEFAULT_PREFS, MAX_QUERIES, domainOf, errorMessage, formatLastSeen, friendlyName, organize, saveQuery, sunTimes, updateInfo, warnings, type ViewPrefs } from './util';
+import { DEFAULT_PREFS, MAX_QUERIES, domainOf, errorMessage, formatLastSeen, friendlyName, matchesFilter, organize, saveQuery, sunTimes, updateInfo, warnings, type ViewPrefs } from './util';
 import './dashboard.css';
 
 export interface HomeCloudDashboardProps {
@@ -203,19 +203,35 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
   const updates = alerts.filter((w) => w.kind === 'update');
   const sun = useMemo(() => sunTimes(entities ?? []), [entities]);
   const info = infoFor ? merged.find((e) => e.entity_id === infoFor) : undefined;
+  const hiddenMatches = useMemo(
+    () => (prefs.showHidden || !filter.trim() ? 0 : merged.filter((e) => prefs.hidden.includes(e.entity_id) && matchesFilter(e, filter)).length),
+    [merged, filter, prefs.hidden, prefs.showHidden],
+  );
   const shownIds = groups.flatMap(([, , list]) => list.map((e) => e.entity_id));
   const stopSelecting = () => {
     setSelecting(false);
     setPicked([]);
+    setBulkMsg(null);
   };
   const addAll = (list: string[], ids: string[]) => [...new Set([...list, ...ids])];
   const dropAll = (list: string[], ids: string[]) => list.filter((x) => !ids.includes(x));
+  /** Last bulk change, with the prefs it replaced so it can be undone. */
+  const [bulkMsg, setBulkMsg] = useState<{ text: string; undo: Partial<ViewPrefs> } | null>(null);
+  const bulk = (text: string, patch: Partial<ViewPrefs>) => {
+    const undo = Object.fromEntries(Object.keys(patch).map((k) => [k, prefs[k as keyof ViewPrefs]])) as Partial<ViewPrefs>;
+    setPrefs(patch);
+    setBulkMsg({ text, undo });
+  };
+  const n = (k: number) => `${k} ${k === 1 ? 'entity' : 'entities'}`;
   const bulkToGroup = (add: boolean) => {
     const g = bulkGroup.trim();
     if (!g) return;
+    const isNew = !prefs.groups[g];
     const next = add ? addAll(prefs.groups[g] ?? [], picked) : dropAll(prefs.groups[g] ?? [], picked);
     const { [g]: _old, ...rest } = prefs.groups;
-    setPrefs({ groups: next.length ? { ...rest, [g]: next } : rest });
+    bulk(add ? `${isNew ? 'Created' : 'Added to'} “${g}”: ${n(picked.length)}` : `Removed ${n(picked.length)} from “${g}”`, {
+      groups: next.length ? { ...rest, [g]: next } : rest,
+    });
   };
   const sectionId = (key: string) => `${homeLabelId}-${key}`;
   const [jumpTo, setJumpTo] = useState<string | null>(null);
@@ -234,6 +250,17 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
     } else setQueryMsg(`Limit is ${MAX_QUERIES}. Delete one first.`);
   };
   const closeNav = useCallback(() => setNavOpen(false), []);
+  useEffect(() => {
+    if (!selecting) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !document.querySelector('dialog[open]')) {
+        setSelecting(false);
+        setPicked([]);
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [selecting]);
 
   const groupNames = useMemo(() => Object.keys(prefs.groups).sort((a, b) => a.localeCompare(b)), [prefs.groups]);
   const hiddenCount = useMemo(() => {
@@ -381,6 +408,38 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
           </section>
         )}
 
+        {filter.trim() && entities && (
+          <div className="hc-results" role="status">
+            <span>
+              {shownIds.length} {shownIds.length === 1 ? 'match' : 'matches'} for “{filter.trim()}”
+              {hiddenMatches > 0 && (
+                <>
+                  {' '}· {hiddenMatches} hidden
+                  <button type="button" className="hc-link-btn" onClick={() => setPrefs({ showHidden: true })}>Show</button>
+                </>
+              )}
+            </span>
+            {shownIds.length > 0 && (
+              <button
+                type="button"
+                className="hc-chip-btn"
+                onClick={() => {
+                  setSelecting(true);
+                  setPicked(shownIds);
+                }}
+              >
+                <Icon path={mdiCheckboxMultipleMarkedOutline} size={18} /> Select {shownIds.length === 1 ? 'it' : `all ${shownIds.length}`}
+              </button>
+            )}
+            {!prefs.queries.includes(filter.trim()) && (
+              <button type="button" className="hc-chip-btn" onClick={onSaveQuery}>
+                <Icon path={mdiBookmarkPlusOutline} size={18} /> Save search
+              </button>
+            )}
+            {queryMsg && <span className="hc-muted">{queryMsg}</span>}
+          </div>
+        )}
+
         {error != null && (
           <p className="hc-banner" role="alert">
             <Icon path={mdiAlertCircleOutline} size={20} /> Can't reach homecloud ({errorMessage(error)}). Showing last known state; retrying…
@@ -442,13 +501,21 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
               <datalist id={groupListId}>
                 {groupNames.map((g) => <option key={g} value={g} />)}
               </datalist>
-              <button type="button" className="hc-btn hc-btn-primary" disabled={!picked.length || !bulkGroup.trim()} onClick={() => bulkToGroup(true)}>Add to group</button>
+              <button type="button" className="hc-btn hc-btn-primary" disabled={!picked.length || !bulkGroup.trim()} onClick={() => bulkToGroup(true)}>
+                {bulkGroup.trim() && !prefs.groups[bulkGroup.trim()] ? 'Create group' : 'Add to group'}
+              </button>
               <button type="button" className="hc-btn" disabled={!picked.length || !prefs.groups[bulkGroup.trim()]} onClick={() => bulkToGroup(false)}>Remove</button>
             </span>
-            <button type="button" className="hc-btn" disabled={!picked.length} onClick={() => setPrefs({ favs: addAll(prefs.favs, picked) })}>Favourite</button>
-            <button type="button" className="hc-btn" disabled={!picked.length} onClick={() => setPrefs({ hidden: addAll(prefs.hidden, picked) })}>Hide</button>
-            <button type="button" className="hc-btn" disabled={!picked.length} onClick={() => setPrefs({ hidden: dropAll(prefs.hidden, picked) })}>Unhide</button>
+            <button type="button" className="hc-btn" disabled={!picked.length} onClick={() => bulk(`Favourited ${n(picked.length)}`, { favs: addAll(prefs.favs, picked) })}>Favourite</button>
+            <button type="button" className="hc-btn" disabled={!picked.length} onClick={() => bulk(`Hid ${n(picked.length)}`, { hidden: addAll(prefs.hidden, picked) })}>Hide</button>
+            <button type="button" className="hc-btn" disabled={!picked.length} onClick={() => bulk(`Unhid ${n(picked.length)}`, { hidden: dropAll(prefs.hidden, picked) })}>Unhide</button>
             <button type="button" className="hc-btn hc-btn-primary" onClick={stopSelecting}>Done</button>
+            {bulkMsg && (
+              <p className="hc-bulk-msg" role="status">
+                {bulkMsg.text}
+                <button type="button" className="hc-link-btn" onClick={() => { setPrefs(bulkMsg.undo); setBulkMsg(null); }}>Undo</button>
+              </p>
+            )}
           </div>
         )}
       </main>
