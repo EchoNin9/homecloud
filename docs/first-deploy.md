@@ -125,7 +125,7 @@ Cognito emails you a temporary password. You'll set a new one at first sign-in i
 lists `admin`.
 
 **Sign-in page branding.** With the default `cognito_branding = true`, the module styles the sign-in page
-like the dashboard: HomeCloud logo, teal buttons, and light or dark following the browser. It uses Cognito
+like the dashboard: HomeCloud logo, teal buttons, dark theme. It uses Cognito
 *managed login*, which needs the pool's **Essentials** tier. Essentials is free for the first 10,000 monthly
 active users and is the default for new pools. To keep AWS's classic hosted UI and the Lite tier, set
 `cognito_branding = false` in the module call. The logo files are in
