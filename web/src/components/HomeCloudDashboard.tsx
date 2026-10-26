@@ -8,6 +8,7 @@ import { MoreInfo, UpdateBody } from './MoreInfo';
 import { Sidebar } from './Sidebar';
 import { usePoll } from './usePoll';
 import { DEFAULT_PREFS, MAX_QUERIES, domainOf, errorMessage, formatLastSeen, friendlyName, groupIds, matchesFilter, moveGroup, organize, saveQuery, setMembers, sunTimes, updateInfo, warnings, type ViewPrefs } from './util';
+import { getTheme, initTheme, setTheme, type Theme } from '../theme';
 import './dashboard.css';
 
 export interface HomeCloudDashboardProps {
@@ -111,6 +112,9 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
   const groupListId = useId();
   const navId = useId();
   const menuRef = useRef<HTMLDetailsElement>(null);
+  const themeId = useId();
+  const [theme, setThemeState] = useState<Theme>(getTheme);
+  useEffect(initTheme, []); // no-op when the host app already called it
 
   useEffect(() => {
     if (pinnedHome) setSelected(pinnedHome);
@@ -382,6 +386,16 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
                   Show hidden ({hiddenCount})
                 </label>
               )}
+              <div className="hc-menu-theme">
+                <span id={themeId}>Theme</span>
+                <span className="hc-seg" role="group" aria-labelledby={themeId}>
+                  {(['system', 'light', 'dark'] as const).map((t) => (
+                    <button key={t} type="button" aria-pressed={theme === t} onClick={() => { setTheme(t); setThemeState(t); }}>
+                      {{ system: 'System', light: 'Light', dark: 'Dark' }[t]}
+                    </button>
+                  ))}
+                </span>
+              </div>
             </div>
           </details>
         </header>
