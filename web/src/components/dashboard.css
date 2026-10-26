@@ -42,33 +42,32 @@
   grid-template-columns: var(--hc-side-w) minmax(0, 1fr);
 }
 .hc-dash[data-collapsed] { --hc-side-w: 68px; }
-@media (prefers-color-scheme: dark) {
-  .hc-dash {
-    --hc-bg: #0c0f13;
-    --hc-surface: #161a20;
-    --hc-surface-2: #1f242c;
-    --hc-surface-3: #2a3039;
-    --hc-text: #e9ecf1;
-    --hc-muted: #98a0ad;
-    --hc-border: #242a33;
-    --hc-border-strong: #343b46;
-    --hc-accent: #4fc4d3;
-    --hc-accent-2: #2a9bb0;
-    --hc-accent-text: #04191d;
-    --hc-on: #ffb300;
-    --hc-on-edge: 14%;
-    --hc-alert: #f26d6d;
-    --hc-moon: #7680e8;
-    --hc-sun: #c98500;
-    --hc-ok: #4ade80;
-    --hc-bad-bg: #331718;
-    --hc-bad-text: #fecaca;
-    --hc-warn-bg: #2f2510;
-    --hc-warn-text: #fde68a;
-    --hc-shadow-1: 0 1px 2px rgb(0 0 0 / 0.3);
-    --hc-shadow-2: 0 2px 6px rgb(0 0 0 / 0.3), 0 10px 24px rgb(0 0 0 / 0.3);
-    --hc-shadow-3: 0 16px 48px rgb(0 0 0 / 0.55), 0 0 0 1px rgb(255 255 255 / 0.04);
-  }
+/* Dark tokens: <html data-theme> is set by src/theme.ts (System / Light / Dark). */
+:root[data-theme='dark'] .hc-dash {
+  --hc-bg: #0c0f13;
+  --hc-surface: #161a20;
+  --hc-surface-2: #1f242c;
+  --hc-surface-3: #2a3039;
+  --hc-text: #e9ecf1;
+  --hc-muted: #98a0ad;
+  --hc-border: #242a33;
+  --hc-border-strong: #343b46;
+  --hc-accent: #4fc4d3;
+  --hc-accent-2: #2a9bb0;
+  --hc-accent-text: #04191d;
+  --hc-on: #ffb300;
+  --hc-on-edge: 14%;
+  --hc-alert: #f26d6d;
+  --hc-moon: #7680e8;
+  --hc-sun: #c98500;
+  --hc-ok: #4ade80;
+  --hc-bad-bg: #331718;
+  --hc-bad-text: #fecaca;
+  --hc-warn-bg: #2f2510;
+  --hc-warn-text: #fde68a;
+  --hc-shadow-1: 0 1px 2px rgb(0 0 0 / 0.3);
+  --hc-shadow-2: 0 2px 6px rgb(0 0 0 / 0.3), 0 10px 24px rgb(0 0 0 / 0.3);
+  --hc-shadow-3: 0 16px 48px rgb(0 0 0 / 0.55), 0 0 0 1px rgb(255 255 255 / 0.04);
 }
 .hc-dash *, .hc-dash *::before, .hc-dash *::after { box-sizing: border-box; }
 .hc-dash :focus-visible { outline: none; box-shadow: var(--hc-focus); }
@@ -242,6 +241,7 @@
 .hc-menu-right { right: 0; }
 .hc-menu-item { font: inherit; color: inherit; text-align: left; background: none; border: 0; border-radius: 8px; padding: 8px 10px; min-height: 40px; cursor: pointer; }
 .hc-menu-item:hover { background: var(--hc-surface-2); }
+.hc-menu-theme { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px 4px; margin-top: 4px; border-top: 1px solid var(--hc-border); }
 
 /* Badges: HA-style pills above the tiles. */
 .hc-badges { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
