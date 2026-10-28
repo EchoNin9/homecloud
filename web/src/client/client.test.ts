@@ -152,3 +152,24 @@ describe('waitForCommand', () => {
     await expect(client.waitForCommand('h', 'c1', { intervalMs: 1 })).rejects.toMatchObject({ status: 404 });
   });
 });
+
+describe('prefs', () => {
+  it('GETs and PUTs the caller prefs for a home', async () => {
+    const calls: [string, RequestInit | undefined][] = [];
+    const c = new HomeCloudClient({
+      apiUrl: 'https://api/',
+      getToken: async () => 't',
+      fetch: async (u, init) => {
+        calls.push([String(u), init]);
+        return new Response(init?.method === 'PUT' ? '{"updatedTs":5}' : '{"prefs":null,"updatedTs":null}');
+      },
+    });
+    expect(await c.getPrefs('h 1')).toEqual({ prefs: null, updatedTs: null });
+    expect(await c.putPrefs('h 1', { favs: ['light.a'] })).toEqual({ updatedTs: 5 });
+    expect(calls.map(([u, i]) => [u, i?.method])).toEqual([
+      ['https://api/v1/homes/h%201/prefs', 'GET'],
+      ['https://api/v1/homes/h%201/prefs', 'PUT'],
+    ]);
+    expect(JSON.parse(String(calls[1]![1]!.body))).toEqual({ prefs: { favs: ['light.a'] } });
+  });
+});

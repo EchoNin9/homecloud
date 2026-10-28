@@ -168,3 +168,27 @@ def test_get_command_status_roundtrip(api, table):
 def test_unknown_route_404(api):
     assert call(api, "DELETE", "/v1/homes")[0] == 404
     assert call(api, "GET", "/v2/homes")[0] == 404
+
+
+def test_prefs_roundtrip_per_user_and_home_with_hashed_key(api, table):
+    p = "/v1/homes/home1/prefs"
+    assert call(api, "GET", p)[1] == {"prefs": None, "updatedTs": None}
+    prefs = {"groups": {"Kitchen": ["light.kitchen"]}, "order": {"Kitchen": ["light.kitchen"]}, "dim": 0.5}
+    s, b, _ = call(api, "PUT", p, body={"prefs": prefs})
+    assert s == 200 and b["updatedTs"] > 0
+    assert call(api, "GET", p)[1]["prefs"] == prefs
+    assert call(api, "GET", p, sub="user-2")[1]["prefs"] is None
+    assert call(api, "GET", "/v1/homes/home2/prefs")[1]["prefs"] is None
+    items = table.scan()["Items"]
+    assert len(items) == 1 and "user-1" not in json.dumps(items, default=str)
+    assert re.fullmatch(r"USER#[0-9a-f]{64}", items[0]["PK"]) and items[0]["SK"] == "PREFS#home1"
+
+
+@pytest.mark.parametrize("body", [{}, {"prefs": []}, {"prefs": "x"}, {"prefs": None}])
+def test_prefs_rejects_non_object(api, body):
+    assert call(api, "PUT", "/v1/homes/home1/prefs", body=body)[0] == 400
+
+
+def test_prefs_needs_group_and_known_home(api):
+    assert call(api, "GET", "/v1/homes/home1/prefs", groups="[user]")[0] == 403
+    assert call(api, "PUT", "/v1/homes/nope/prefs", body={"prefs": {}})[0] == 404

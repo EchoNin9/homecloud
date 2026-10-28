@@ -28,6 +28,7 @@ def env(monkeypatch):
         "TABLE_NAME": TABLE, "HOME_IDS": "home1,home2", "THING_PREFIX": "homecloud",
         "ALLOWED_GROUPS": "admin", "ALLOWED_SERVICES": ALLOWED,
         "IOT_ENDPOINT": "example-ats.iot.us-east-1.amazonaws.com", "API_VERSION": "9.9.9",
+        "PREFS_HMAC_KEY": "test-key",
     }.items():
         monkeypatch.setenv(k, v)
 
