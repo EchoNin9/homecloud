@@ -1,4 +1,4 @@
-import { mdiAlertCircleOutline, mdiArrowDown, mdiArrowLeft, mdiArrowRight, mdiArrowUp, mdiCursorMove, mdiBookmarkPlusOutline, mdiFolderPlusOutline, mdiCheckboxMultipleMarkedOutline, mdiDocker, mdiDotsVertical, mdiDoorOpen, mdiHarddisk, mdiMagnify, mdiMenu, mdiPackageUp, mdiWeatherSunsetDown, mdiWeatherSunsetUp } from '@mdi/js';
+import { mdiAlertCircleOutline, mdiArrowDown, mdiCheck, mdiDragVertical, mdiArrowLeft, mdiArrowRight, mdiArrowUp, mdiCursorMove, mdiBookmarkPlusOutline, mdiFolderPlusOutline, mdiCheckboxMultipleMarkedOutline, mdiDocker, mdiDotsVertical, mdiDoorOpen, mdiHarddisk, mdiMagnify, mdiMenu, mdiPackageUp, mdiWeatherSunsetDown, mdiWeatherSunsetUp } from '@mdi/js';
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type DragEvent } from 'react';
 import type { Entity, Home, HomeCloudClient } from '../client';
 import { EntityCard, type Action } from './EntityCard';
@@ -566,7 +566,7 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
             const dragging = () => (dragId.current && ids.includes(dragId.current) ? dragId.current : null);
             const custom = !prefs.defaultSort.includes(title);
             return (
-            <section key={key} className="hc-section" aria-labelledby={sectionId(key)}>
+            <section key={key} className="hc-section" data-arranging={arr || undefined} aria-labelledby={sectionId(key)}>
               <div className="hc-section-head">
               <h2 id={sectionId(key)} className="hc-section-title">
                 {title} <span className="hc-count">{list.length}</span>
@@ -585,8 +585,8 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
                         </button>
                       ))}
                     </span>
-                    <button type="button" className="hc-chip-btn" onClick={() => setArranging(arranging === title ? null : title)}>
-                      <Icon path={mdiCursorMove} size={18} /> {arranging === title ? 'Done' : 'Arrange'}
+                    <button type="button" className={arr ? 'hc-chip-btn hc-chip-primary' : 'hc-chip-btn'} onClick={() => setArranging(arranging === title ? null : title)}>
+                      <Icon path={arr ? mdiCheck : mdiCursorMove} size={18} /> {arr ? 'Done' : 'Arrange'}
                     </button>
                   </span>
                 )}
@@ -660,12 +660,14 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
                         draggable: true,
                         onDragStart: (ev) => {
                           dragId.current = e.entity_id;
+                          ev.currentTarget.dataset.dragging = '';
                           ev.dataTransfer.effectAllowed = 'move';
                           ev.dataTransfer.setData('text/plain', e.entity_id);
                         },
-                        onDragEnd: () => { dragId.current = null; setDropLine(null); },
+                        onDragEnd: (ev) => { dragId.current = null; setDropLine(null); delete ev.currentTarget.dataset.dragging; },
                       } : undefined}
                     >
+                      {arr && <span className="hc-tile-grip" aria-hidden="true"><Icon path={mdiDragVertical} size={18} /></span>}
                       {arr && (
                         <span className="hc-tile-move">
                           {btn('u', 'up a row', mdiArrowUp, i === 0, (c) => i - c)}
