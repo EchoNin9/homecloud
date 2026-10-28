@@ -293,7 +293,8 @@ button.hc-badge:hover { border-color: var(--hc-border-strong); box-shadow: var(-
 .hc-tile[data-tone='alert'] { background: color-mix(in srgb, var(--hc-alert) 6%, var(--hc-surface)); border-color: color-mix(in srgb, var(--hc-alert) 30%, var(--hc-border)); }
 .hc-tile[data-hidden] { opacity: 0.5; }
 .hc-tile[draggable='true'] { cursor: grab; border-style: dashed; border-color: var(--hc-accent); }
-.hc-tile-move { display: flex; justify-content: flex-end; gap: 4px; margin: -6px -6px -6px 0; }
+.hc-tile-move { display: flex; justify-content: flex-end; gap: 2px; margin: -6px -6px -6px 0; }
+.hc-tile-move .hc-icon-btn { width: 34px; height: 34px; }
 .hc-section-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0 0 10px; }
 .hc-section-head .hc-section-title { margin: 0 0 0 2px; }
 .hc-section-tools { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: auto; font-size: 0.85rem; font-weight: 500; }
