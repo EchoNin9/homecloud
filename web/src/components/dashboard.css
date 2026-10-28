@@ -245,7 +245,7 @@
 .hc-menu-theme { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px 4px; margin-top: 4px; border-top: 1px solid var(--hc-border); }
 
 /* Badges: HA-style pills above the tiles. */
-.hc-badges { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
+.hc-badges { position: relative; display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; } /* anchors the .hc-sr labels inside it */
 .hc-badge {
   display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 4px 14px 4px 6px; border-radius: 18px;
   font: inherit; font-size: 0.85rem; color: var(--hc-text); text-align: left; background: var(--hc-surface); border: 1px solid var(--hc-border);
@@ -528,7 +528,9 @@ button.hc-badge:hover { border-color: var(--hc-border-strong); box-shadow: var(-
   .hc-title, .hc-title-select { font-size: 1.12rem; }
   .hc-status { padding: 0 8px; }
   .hc-status-seen { display: none; }
-  .hc-search { flex-basis: 140px; }
+  .hc-search { flex: 1 1 0; min-width: 48px; }
+  .hc-title-select { min-width: 0; max-width: 38vw; text-overflow: ellipsis; }
+  .hc-search .hc-input::placeholder { color: transparent; } /* icon-only field; the label says "Search entities" */
   .hc-tiles { gap: 8px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr)); }
   .hc-tile { padding: 10px; gap: 10px; }
   .hc-tile-main { gap: 10px; }
