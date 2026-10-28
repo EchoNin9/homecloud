@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Entity } from '../client';
-import { DEFAULT_PREFS, MAX_QUERIES, groupIds, moveGroup, organize, setMembers, prettyState, saveQuery, stateText, sunTimes, updateInfo, warnings } from './util';
+import { DEFAULT_PREFS, MAX_QUERIES, groupIds, moveGroup, moveTo, organize, setMembers, prettyState, saveQuery, stateText, sunTimes, updateInfo, warnings } from './util';
 
 const e = (entity_id: string, name: string, last_changed = '2026-01-01T00:00:00Z'): Entity => ({
   entity_id,
@@ -205,5 +205,30 @@ describe('live-search groups', () => {
     const hand = { ...DEFAULT_PREFS, groups: { G: ['light.desk'] } };
     expect(setMembers(hand, 'G', ['light.desk'], false, ents).groups).toEqual({});
     expect(moveGroup({ ...base, only: 'Bed' }, 'Bed', 'Sleep')).toMatchObject({ groupQueries: { Sleep: 'bedroom' }, groups: { Sleep: [] }, only: 'Sleep' });
+  });
+});
+
+describe('custom tile order', () => {
+  const all = [e('light.a', 'A'), e('light.b', 'B'), e('light.c', 'C'), e('light.d', 'D')];
+  const p = { ...DEFAULT_PREFS, group: 'custom' as const, groups: { G: ['light.a', 'light.b', 'light.c', 'light.d'] } };
+  const names = (prefs: typeof p) => organize(all, '', prefs)[0]![2].map((x) => x.entity_id);
+
+  it('moves to the target slot, both directions, keeping unshown members', () => {
+    const ids = ['a', 'b', 'c', 'd'];
+    expect(moveTo(ids, 'a', 2)).toEqual(['b', 'c', 'a', 'd']);
+    expect(moveTo(ids, 'd', 0)).toEqual(['d', 'a', 'b', 'c']);
+    expect(moveTo(ids, 'b', 99, ['x', 'a'])).toEqual(['a', 'c', 'd', 'b', 'x']);
+  });
+
+  it('applies the saved order (new members last, default order) and the toggle', () => {
+    const order = { G: ['light.c', 'light.a'] };
+    expect(names({ ...p, order })).toEqual(['light.c', 'light.a', 'light.b', 'light.d']);
+    expect(names({ ...p, order, customOrder: false })).toEqual(['light.a', 'light.b', 'light.c', 'light.d']);
+    expect(names({ ...p, order, only: 'G' })).toEqual(['light.c', 'light.a', 'light.b', 'light.d']);
+  });
+
+  it('renaming or deleting a group carries its order', () => {
+    expect(moveGroup({ ...p, order: { G: ['light.b'] } }, 'G', 'H').order).toEqual({ H: ['light.b'] });
+    expect(moveGroup({ ...p, order: { G: ['light.b'] } }, 'G', null).order).toEqual({});
   });
 });

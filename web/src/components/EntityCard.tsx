@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type LiHTMLAttributes, type ReactNode } from 'react';
 import type { Entity } from '../client';
 import { fromHex, kelvinToRgb, rgbOf, toHex } from './color';
 import { Icon, entityIcon, iconTone } from './icons';
@@ -191,16 +191,21 @@ interface TileProps {
   selecting?: boolean;
   selected?: boolean;
   onSelect?: () => void;
+  /** Arranging: controls hidden; `li` carries the drag handlers, `children` the move buttons. */
+  arranging?: boolean;
+  li?: LiHTMLAttributes<HTMLLIElement>;
+  children?: ReactNode;
 }
 
 /**
  * Home Assistant style tile: icon (tap = toggle/activate), name and state (tap = more info),
  * plus a feature row for lights with brightness and for climate.
  */
-export function EntityCard({ entity, disabled, busy, onAction, onOpen, hidden, selecting, selected, onSelect }: TileProps) {
+export function EntityCard({ entity, disabled, busy, onAction, onOpen, hidden, selecting, selected, onSelect, arranging, li, children }: TileProps) {
   const nameId = useId();
   const name = friendlyName(entity);
-  const act = selecting ? null : primaryAction(entity);
+  const quiet = selecting || arranging;
+  const act = quiet ? null : primaryAction(entity);
   const tone = iconTone(entity);
   const d = domainOf(entity.entity_id);
   const icon = (
@@ -216,6 +221,8 @@ export function EntityCard({ entity, disabled, busy, onAction, onOpen, hidden, s
       data-hidden={hidden || undefined}
       data-selected={selected || undefined}
       aria-busy={busy || undefined}
+      data-arranging={arranging || undefined}
+      {...li}
     >
       <div className="hc-tile-main">
         {act ? (
@@ -233,18 +240,19 @@ export function EntityCard({ entity, disabled, busy, onAction, onOpen, hidden, s
         ) : (
           icon
         )}
-        <button type="button" className="hc-tile-info" aria-haspopup={selecting ? undefined : 'dialog'} aria-pressed={selecting ? !!selected : undefined} onClick={selecting ? onSelect : onOpen}>
+        <button type="button" className="hc-tile-info" aria-haspopup={quiet ? undefined : 'dialog'} aria-pressed={selecting ? !!selected : undefined} onClick={selecting ? onSelect : arranging ? undefined : onOpen}>
           <span className="hc-tile-name" title={name}>{name}</span>
           <span className="hc-tile-state" id={nameId}>{stateText(entity)}</span>
         </button>
         {selecting && <span className="hc-tile-check" aria-hidden="true">{selected ? '✓' : ''}</span>}
       </div>
-      {!selecting && hasBrightness(entity) && (
+      {!quiet && hasBrightness(entity) && (
         <div className="hc-tile-feature"><Brightness entity={entity} disabled={disabled} onAction={onAction} /></div>
       )}
-      {!selecting && d === 'climate' && (
+      {!quiet && d === 'climate' && (
         <div className="hc-tile-feature"><Climate entity={entity} disabled={disabled} onAction={onAction} /></div>
       )}
+      {children}
     </li>
   );
 }
