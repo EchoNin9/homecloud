@@ -135,6 +135,12 @@ resource "aws_iam_role_policy" "api" {
   })
 }
 
+# Hashes the Cognito sub into the prefs item key (docs/contract.md). Replacing it orphans saved prefs.
+resource "random_password" "prefs_hmac" {
+  length  = 48
+  special = false
+}
+
 resource "aws_lambda_function" "api" {
   function_name    = "${var.name_prefix}-api"
   role             = aws_iam_role.api.arn
@@ -155,6 +161,7 @@ resource "aws_lambda_function" "api" {
       HISTORY_UTC_OFFSET_HOURS = tostring(var.history_utc_offset_hours)
       IOT_ENDPOINT             = data.aws_iot_endpoint.this.endpoint_address
       API_VERSION              = "0.1.0"
+      PREFS_HMAC_KEY           = random_password.prefs_hmac.result
     }
   }
 

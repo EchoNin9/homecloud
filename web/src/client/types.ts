@@ -100,3 +100,9 @@ export interface HomeCloudClientOptions {
   /** Override fetch (tests, node, custom transports). Defaults to globalThis.fetch. */
   fetch?: typeof fetch;
 }
+
+/** The caller's own view prefs for one home. `prefs` is opaque to the server. */
+export interface PrefsResponse<P = Record<string, unknown>> {
+  prefs: P | null;
+  updatedTs: number | null;
+}

@@ -239,6 +239,34 @@ creates the certificate, validates it, and adds `A`/`AAAA` alias records. The de
 Either way, the domain is added to the Cognito sign-in redirect URLs and API CORS on the first
 apply. The CloudFront address keeps working too.
 
+## 11. View prefs sync (automatic) and optional KMS encryption
+
+Groups, favourites, hidden items, saved searches and sort sync to your account through
+`GET`/`PUT /v1/homes/{homeId}/prefs` (`docs/contract.md`, "Prefs"). Nothing to set up: the module
+generates `PREFS_HMAC_KEY` (`random_password.prefs_hmac`) and stores prefs under
+`USER#{HMAC(sub)}`, so the table never holds your Cognito user id. Your browser's existing
+local prefs are uploaded the first time you open the dashboard after the deploy.
+
+- [ ] Smoke test: rearrange a group, then open the site in another browser (or a private window).
+      The same groups show up.
+- Never `tofu taint` or replace `random_password.prefs_hmac`. A new key orphans every saved
+  item, and each browser re-uploads its local copy.
+
+**Optional: encrypt prefs with your own KMS key** (not built; ~$1/month plus $0.03 per 10,000
+requests). The table already has AWS-owned encryption at rest. This step adds a key that only
+the API role can use, and every decrypt is logged in CloudTrail. It needs a small code change:
+1. Module: add an `aws_kms_key` (with `enable_key_rotation = true`) and an alias, give the API
+   role `kms:Encrypt` and `kms:Decrypt` on it, and pass its ARN to the API Lambda as `PREFS_KMS_KEY`.
+2. `cloud/lambdas/api/handler.py`, `put_prefs`: `boto3.client("kms").encrypt(KeyId=…, Plaintext=<the
+   prefs string>, EncryptionContext={"pk": <PK>, "sk": <SK>})`. Store the `CiphertextBlob` as
+   binary `prefs_enc` and drop `prefs`. The context binds the ciphertext to its own item.
+3. `get_prefs`: `decrypt` `prefs_enc` (same context) when it's there; otherwise read the plain
+   `prefs`, so existing items keep working until their next save.
+4. Contract: add `prefs_enc` to the `USER#` row. Add a moto test that the stored item holds no
+   plaintext. Deploy, then save any change in each browser to re-encrypt.
+
+boto3 only, so the Lambda zip packaging doesn't change.
+
 ## Troubleshooting
 
 | Symptom | Usual cause | Fix |

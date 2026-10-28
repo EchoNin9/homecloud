@@ -68,6 +68,7 @@ export function mockApiPlugin(): Plugin {
     res.setHeader('Content-Type', 'application/json');
     res.end(JSON.stringify(body));
   };
+  const prefsStore: Record<string, { prefs: unknown; updatedTs: number }> = {};
   const readBody = (req: IncomingMessage) =>
     new Promise<string>((resolve) => {
       let b = '';
@@ -150,6 +151,15 @@ export function mockApiPlugin(): Plugin {
         if ((m = p.match(/^\/v1\/homes\/([^/]+)\/entities\/([^/]+)$/))) {
           const ent = homes[decodeURIComponent(m[1]!)]?.entities.get(decodeURIComponent(m[2]!));
           return ent ? send(res, 200, ent) : send(res, 404, { error: 'not_found', message: 'no such entity' });
+        }
+        if ((m = p.match(/^\/v1\/homes\/([^/]+)\/prefs$/))) {
+          // ponytail: one in-memory user; restarting the dev server clears it.
+          const k = decodeURIComponent(m[1]!);
+          if (req.method === 'PUT') {
+            prefsStore[k] = { prefs: JSON.parse(await readBody(req)).prefs, updatedTs: Date.now() };
+            return send(res, 200, { updatedTs: prefsStore[k].updatedTs });
+          }
+          return send(res, 200, prefsStore[k] ?? { prefs: null, updatedTs: null });
         }
         if ((m = p.match(/^\/v1\/homes\/([^/]+)\/commands$/)) && req.method === 'POST') {
           const h = homes[decodeURIComponent(m[1]!)];

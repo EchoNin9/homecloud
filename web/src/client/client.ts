@@ -12,6 +12,7 @@ import type {
   WaitForCommandOptions,
   History,
   HistoryOptions,
+  PrefsResponse,
 } from './types';
 
 const enc = encodeURIComponent;
@@ -62,6 +63,14 @@ export class HomeCloudClient {
     return this.request<CommandStatus>('GET', `/v1/homes/${enc(homeId)}/commands/${enc(id)}`);
   }
 
+  getPrefs<P = Record<string, unknown>>(homeId: string): Promise<PrefsResponse<P>> {
+    return this.request<PrefsResponse<P>>('GET', `/v1/homes/${enc(homeId)}/prefs`);
+  }
+
+  putPrefs(homeId: string, prefs: object): Promise<{ updatedTs: number }> {
+    return this.request<{ updatedTs: number }>('PUT', `/v1/homes/${enc(homeId)}/prefs`, { prefs });
+  }
+
   /**
    * Polls until the command leaves `pending`. Resolves with the final status
    * (`ok` or `error`; inspect `.status`/`.error`). Rejects with
@@ -85,7 +94,7 @@ export class HomeCloudClient {
   }
 
   private async request<T>(
-    method: 'GET' | 'POST',
+    method: 'GET' | 'POST' | 'PUT',
     path: string,
     body?: unknown,
     auth = true,

@@ -6,7 +6,7 @@ resource "aws_apigatewayv2_api" "this" {
     for_each = length(local.cors_origins) > 0 ? [1] : []
     content {
       allow_origins = local.cors_origins
-      allow_methods = ["GET", "POST", "OPTIONS"]
+      allow_methods = ["GET", "POST", "PUT", "OPTIONS"]
       allow_headers = ["authorization", "content-type"]
       max_age       = 3600
     }
@@ -50,6 +50,8 @@ locals {
     "POST /v1/homes/{homeId}/commands"           = true
     "GET /v1/homes/{homeId}/commands/{id}"       = true
     "GET /v1/homes/{homeId}/history/{entityId}"  = true
+    "GET /v1/homes/{homeId}/prefs"               = true
+    "PUT /v1/homes/{homeId}/prefs"               = true
   }
 }
 

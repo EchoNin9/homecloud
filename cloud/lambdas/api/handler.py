@@ -1,6 +1,8 @@
 """HTTP API (API Gateway v2, payload 2.0) -> DynamoDB / IoT Core."""
 import base64
 import datetime as dt
+import hashlib
+import hmac
 import json
 import logging
 import os
@@ -25,6 +27,7 @@ R_ENTITY = re.compile(r"^/v1/homes/([^/]+)/entities/([^/]+)$")
 R_COMMANDS = re.compile(r"^/v1/homes/([^/]+)/commands$")
 R_COMMAND = re.compile(r"^/v1/homes/([^/]+)/commands/([^/]+)$")
 R_HISTORY = re.compile(r"^/v1/homes/([^/]+)/history/([^/]+)$")
+R_PREFS = re.compile(r"^/v1/homes/([^/]+)/prefs$")
 
 DAY_MS = 86_400_000
 HISTORY = {"raw": (DAY_MS, 35 * DAY_MS), "day": (30 * DAY_MS, 470 * DAY_MS)}  # default span, max span
@@ -255,6 +258,32 @@ def get_command(home, cid):
     return 200, {"id": cid, "status": item.get("status"), "error": item.get("error")}
 
 
+def _prefs_key(home, claims):
+    sub = claims.get("sub")
+    if not sub:
+        raise ApiError(403, "forbidden", "token has no sub")
+    uid = hmac.new(os.environ["PREFS_HMAC_KEY"].encode(), sub.encode(), hashlib.sha256).hexdigest()
+    return {"PK": f"USER#{uid}", "SK": f"PREFS#{home}"}
+
+
+def get_prefs(home, claims):
+    item = _table().get_item(Key=_prefs_key(home, claims)).get("Item")
+    if not item:
+        return 200, {"prefs": None, "updatedTs": None}
+    return 200, {"prefs": json.loads(item["prefs"]), "updatedTs": item.get("updated_ts")}
+
+
+def put_prefs(event, home, claims):
+    prefs = _json_body(event).get("prefs")
+    if not isinstance(prefs, dict):
+        raise ApiError(400, "bad_request", "prefs must be an object")
+    now = hc.now_ms()
+    # ponytail: stored as a JSON string so the server never parses it; optional KMS encryption
+    # (docs/first-deploy.md) wraps this one string.
+    hc.put_item(_table(), {**_prefs_key(home, claims), "prefs": json.dumps(prefs, separators=(",", ":")), "updated_ts": now})
+    return 200, {"updatedTs": now}
+
+
 def handler(event, context=None):
     http = (event.get("requestContext") or {}).get("http") or {}
     method = (http.get("method") or event.get("httpMethod") or "").upper()
@@ -276,6 +305,8 @@ def handler(event, context=None):
             route = ("get_cmd",) + R_COMMAND.match(path).groups()
         elif method == "GET" and R_HISTORY.match(path):
             route = ("history",) + R_HISTORY.match(path).groups()
+        elif method in ("GET", "PUT") and R_PREFS.match(path):
+            route = (method.lower() + "_prefs", R_PREFS.match(path).group(1))
         if route is None:
             raise ApiError(404, "not_found", "no such route")
 
@@ -291,6 +322,10 @@ def handler(event, context=None):
                 status, body = get_entity(home, route[2])
             elif name == "history":
                 status, body = get_history(event, home, route[2])
+            elif name == "get_prefs":
+                status, body = get_prefs(home, claims)
+            elif name == "put_prefs":
+                status, body = put_prefs(event, home, claims)
             elif name == "post_cmd":
                 status, body = post_command(event, home, claims)
             else:

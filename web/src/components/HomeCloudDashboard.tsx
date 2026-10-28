@@ -32,12 +32,19 @@ interface Toast {
 
 const PATCH_HOLD_MS = 4000;
 
-// ponytail: per-browser prefs in localStorage; move to the API if they need to sync across devices.
-function usePrefs(homeId: string | undefined) {
+const store = {
+  get: (k: string) => { try { return localStorage.getItem(k); } catch { return null; } },
+  set: (k: string, v: string | null) => { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch { /* storage unavailable */ } },
+};
+
+// Prefs live in localStorage and sync to the account (docs/contract.md "Prefs").
+// `<key>.dirty` marks local edits the server hasn't confirmed; they win over the server copy.
+// ponytail: last write wins across devices; merge per field if two devices edit at once.
+function usePrefs(client: HomeCloudClient, homeId: string | undefined) {
   const key = `hc.prefs.${homeId ?? ''}`;
   const load = (): ViewPrefs => {
     try {
-      return { ...DEFAULT_PREFS, ...JSON.parse(localStorage.getItem(key) ?? '{}') };
+      return { ...DEFAULT_PREFS, ...JSON.parse(store.get(key) ?? '{}') };
     } catch {
       return DEFAULT_PREFS;
     }
@@ -48,15 +55,46 @@ function usePrefs(homeId: string | undefined) {
     (patch: Partial<ViewPrefs>) =>
       setState((cur) => {
         const next = { ...(cur.key === key ? cur.prefs : load()), ...patch };
-        try {
-          localStorage.setItem(key, JSON.stringify(next));
-        } catch {
-          /* storage unavailable: prefs last for this session only */
-        }
+        store.set(key, JSON.stringify(next));
+        store.set(`${key}.dirty`, '1');
         return { key, prefs: next };
       }),
     [key],
   );
+
+  const push = useCallback(
+    (p: ViewPrefs) => {
+      if (!homeId) return;
+      client.putPrefs(homeId, p).then(() => store.set(`${key}.dirty`, null), () => { /* stays dirty; retried on next edit or load */ });
+    },
+    [client, homeId, key],
+  );
+
+  // Pull once per home: server wins unless this browser has unsynced edits.
+  useEffect(() => {
+    if (!homeId) return;
+    let live = true;
+    client.getPrefs<Partial<ViewPrefs>>(homeId).then(
+      (r) => {
+        if (!live) return;
+        if (store.get(`${key}.dirty`) || (!r.prefs && store.get(key))) return push(load());
+        if (!r.prefs) return;
+        const next = { ...DEFAULT_PREFS, ...r.prefs };
+        store.set(key, JSON.stringify(next));
+        setState({ key, prefs: next });
+      },
+      () => { /* offline or old API: local prefs only */ },
+    );
+    return () => { live = false; };
+  }, [client, homeId, key, push]);
+
+  // Push edits, debounced.
+  useEffect(() => {
+    if (state.key !== key || !store.get(`${key}.dirty`)) return;
+    const t = setTimeout(() => push(state.prefs), 1000);
+    return () => clearTimeout(t);
+  }, [state, key, push]);
+
   return [prefs, update] as const;
 }
 
@@ -103,7 +141,7 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
   const toastId = useRef(0);
   const homeLabelId = useId();
   const searchId = useId();
-  const [prefs, setPrefs] = usePrefs(pinnedHome ?? selected);
+  const [prefs, setPrefs] = usePrefs(client, pinnedHome ?? selected);
   const [navOpen, setNavOpen] = useState(false);
   const [collapsed, toggleCollapsed] = useCollapsed();
   const [selecting, setSelecting] = useState(false);
