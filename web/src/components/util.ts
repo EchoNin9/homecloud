@@ -55,11 +55,11 @@ export interface ViewPrefs {
   only: string;
   /** Custom groups: name -> entity ids in the user's order (drag and drop). */
   order: Record<string, string[]>;
-  /** Custom groups use `order` (true) or the default sort (false). */
-  customOrder: boolean;
+  /** Custom groups shown in the default sort instead of their `order`. */
+  defaultSort: string[];
 }
 
-export const DEFAULT_PREFS: ViewPrefs = { sort: 'name', group: 'domain', favs: [], hidden: [], groups: {}, queries: [], showHidden: false, only: '', groupQueries: {}, groupOut: {}, order: {}, customOrder: true };
+export const DEFAULT_PREFS: ViewPrefs = { sort: 'name', group: 'domain', favs: [], hidden: [], groups: {}, queries: [], showHidden: false, only: '', groupQueries: {}, groupOut: {}, order: {}, defaultSort: [] };
 export const MAX_QUERIES = 15;
 
 /** Add q to the saved list (newest first, no duplicates). Null when full. */
@@ -93,9 +93,14 @@ type Box = { left: number; top: number; right: number; bottom: number };
  * `from` is the dragged tile's own index, which moveTo removes first.
  */
 export function dropIndex(rects: Box[], from: number, x: number, y: number): number {
-  let k = rects.findIndex((r) => y < r.top || (y <= r.bottom && x < (r.left + r.right) / 2));
-  if (k === -1) k = rects.length;
+  const k = dropSlot(rects, x, y);
   return k > from ? k - 1 : k;
+}
+
+/** The gap a point falls in: 0 = before the first tile, rects.length = after the last. */
+export function dropSlot(rects: Box[], x: number, y: number): number {
+  const k = rects.findIndex((r) => y < r.top || (y <= r.bottom && x < (r.left + r.right) / 2));
+  return k === -1 ? rects.length : k;
 }
 
 /** One rendered section: [key, title, entities]. */
@@ -127,7 +132,7 @@ export function organize(entities: Entity[], filter: string, p: ViewPrefs): Sect
   return out;
 }
 
-const mine = (list: Entity[], group: string, p: ViewPrefs) => (p.customOrder ? arrange(list, p.order[group]) : list);
+const mine = (list: Entity[], group: string, p: ViewPrefs) => (p.defaultSort.includes(group) ? list : arrange(list, p.order[group]));
 
 function grouped(shown: Entity[], p: ViewPrefs): Section[] {
   const favs = new Set(p.favs);
@@ -413,6 +418,7 @@ export function moveGroup(p: ViewPrefs, from: string, to: string | null): Partia
   };
   return {
     groups: pick(p.groups), groupQueries: pick(p.groupQueries), groupOut: pick(p.groupOut), order: pick(p.order),
+    defaultSort: p.defaultSort.filter((g) => g !== from).concat(to && p.defaultSort.includes(from) ? [to] : []),
     ...(p.only === from ? { only: to ?? '' } : {}),
   };
 }

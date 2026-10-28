@@ -295,6 +295,17 @@ button.hc-badge:hover { border-color: var(--hc-border-strong); box-shadow: var(-
 .hc-tile[draggable='true'] { cursor: grab; border-style: dashed; border-color: var(--hc-accent); }
 .hc-tile-move { display: flex; justify-content: flex-end; gap: 2px; margin: -6px -6px -6px 0; }
 .hc-tile-move .hc-icon-btn { width: 34px; height: 34px; }
+/* Fingers: four equal 44px-tall buttons across the tile. */
+@media (pointer: coarse) {
+  .hc-tile-move { display: grid; grid-template-columns: repeat(4, 1fr); margin: 0 -4px -4px; }
+  .hc-tile-move .hc-icon-btn { width: auto; height: 44px; border-radius: 10px; }
+}
+.hc-tiles:has(.hc-drop-line) { position: relative; }
+.hc-drop-line { position: absolute; width: 3px; margin-left: -1.5px; border-radius: 2px; background: var(--hc-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--hc-accent) 25%, transparent); pointer-events: none; }
+.hc-seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 18px; background: var(--hc-surface-2); }
+.hc-seg button { font: inherit; font-size: 0.85rem; font-weight: 500; min-height: 30px; padding: 0 12px; border: 0; border-radius: 15px; cursor: pointer; color: var(--hc-muted); background: none; }
+.hc-seg button:hover { color: var(--hc-text); }
+.hc-seg button[aria-pressed='true'] { color: var(--hc-accent); background: var(--hc-surface); box-shadow: var(--hc-shadow-1); }
 .hc-section-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0 0 10px; }
 .hc-section-head .hc-section-title { margin: 0 0 0 2px; }
 .hc-section-tools { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: auto; font-size: 0.85rem; font-weight: 500; }

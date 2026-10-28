@@ -7,7 +7,7 @@ import { Icon } from './icons';
 import { MoreInfo, UpdateBody } from './MoreInfo';
 import { Sidebar } from './Sidebar';
 import { usePoll } from './usePoll';
-import { DEFAULT_PREFS, MAX_QUERIES, domainOf, errorMessage, formatLastSeen, friendlyName, groupIds, matchesFilter, dropIndex, moveGroup, moveTo, organize, saveQuery, setMembers, sunTimes, updateInfo, warnings, type ViewPrefs } from './util';
+import { DEFAULT_PREFS, MAX_QUERIES, domainOf, errorMessage, formatLastSeen, friendlyName, groupIds, matchesFilter, dropIndex, dropSlot, moveGroup, moveTo, organize, saveQuery, setMembers, sunTimes, updateInfo, warnings, type ViewPrefs } from './util';
 import { getTheme, initTheme, setTheme, type Theme } from '../theme';
 import './dashboard.css';
 
@@ -149,6 +149,8 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
   const [bulkGroup, setBulkGroup] = useState('');
   const [arranging, setArranging] = useState<string | null>(null); // group name
   const dragId = useRef<string | null>(null);
+  const [dropLine, setDropLine] = useState<{ group: string; x: number; y: number; h: number } | null>(null);
+  const [announce, setAnnounce] = useState('');
   const groupListId = useId();
   const navId = useId();
   const menuRef = useRef<HTMLDetailsElement>(null);
@@ -555,9 +557,14 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
           groups.map(([key, title, list]) => {
             const arr = arranging === title && key.startsWith('grp:') && !selecting;
             const ids = list.map((x) => x.entity_id);
-            const move = (id: string, to: number) =>
-              setPrefs({ order: { ...prefs.order, [title]: moveTo(ids, id, to, prefs.order[title]) }, customOrder: true });
+            const move = (id: string, to: number) => {
+              const next = moveTo(ids, id, to, prefs.order[title]);
+              setPrefs({ order: { ...prefs.order, [title]: next }, defaultSort: prefs.defaultSort.filter((g) => g !== title) });
+              const e = list.find((x) => x.entity_id === id);
+              setAnnounce(`${e ? friendlyName(e) : id} moved to ${next.indexOf(id) + 1} of ${ids.length}`);
+            };
             const dragging = () => (dragId.current && ids.includes(dragId.current) ? dragId.current : null);
+            const custom = !prefs.defaultSort.includes(title);
             return (
             <section key={key} className="hc-section" aria-labelledby={sectionId(key)}>
               <div className="hc-section-head">
@@ -566,9 +573,18 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
               </h2>
                 {key.startsWith('grp:') && key !== 'grp:' && !selecting && (
                   <span className="hc-section-tools">
-                    <button type="button" className="hc-chip-btn" onClick={() => setPrefs({ customOrder: !prefs.customOrder })}>
-                      Toggle sort <span className="hc-muted">{prefs.customOrder ? 'Custom' : prefs.sort === 'recent' ? 'Recent' : 'A–Z'}</span>
-                    </button>
+                    <span className="hc-seg" role="group" aria-label={`Sort ${title}`}>
+                      {([[true, 'Custom'], [false, prefs.sort === 'recent' ? 'Recent' : 'A–Z']] as const).map(([c, label]) => (
+                        <button
+                          key={label}
+                          type="button"
+                          aria-pressed={custom === c}
+                          onClick={() => setPrefs({ defaultSort: c ? prefs.defaultSort.filter((g) => g !== title) : [...prefs.defaultSort.filter((g) => g !== title), title] })}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </span>
                     <button type="button" className="hc-chip-btn" onClick={() => setArranging(arranging === title ? null : title)}>
                       <Icon path={mdiCursorMove} size={18} /> {arranging === title ? 'Done' : 'Arrange'}
                     </button>
@@ -582,17 +598,37 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
                 className="hc-tiles"
                 {...(arr ? {
                   // Drop anywhere in the grid: gaps, either half of a tile, or after the last one.
-                  onDragOver: (ev: DragEvent<HTMLUListElement>) => { if (dragging()) ev.preventDefault(); },
+                  onDragOver: (ev: DragEvent<HTMLUListElement>) => {
+                    const id = dragging();
+                    if (!id) return;
+                    ev.preventDefault();
+                    // Indicator: a line in the gap the tile would land in (none where it wouldn't move).
+                    const ul = ev.currentTarget.getBoundingClientRect();
+                    const rects = [...ev.currentTarget.children].filter((c) => c.classList.contains('hc-tile')).map((c) => c.getBoundingClientRect());
+                    const k = dropSlot(rects, ev.clientX, ev.clientY);
+                    const from = ids.indexOf(id);
+                    const r = rects[Math.min(k, rects.length - 1)]!;
+                    const next = k === from || k === from + 1 ? null
+                      : { group: title, x: (k < rects.length ? r.left - 5 : r.right + 5) - ul.left, y: r.top - ul.top, h: r.height };
+                    setDropLine((cur) => (cur?.x === next?.x && cur?.y === next?.y && cur?.group === next?.group ? cur : next));
+                  },
+                  onDragLeave: (ev: DragEvent<HTMLUListElement>) => {
+                    if (!ev.currentTarget.contains(ev.relatedTarget as Node | null)) setDropLine(null);
+                  },
                   onDrop: (ev: DragEvent<HTMLUListElement>) => {
                     ev.preventDefault();
                     const id = dragging();
                     dragId.current = null;
+                    setDropLine(null);
                     if (!id) return;
-                    const rects = [...ev.currentTarget.children].map((c) => c.getBoundingClientRect());
+                    const rects = [...ev.currentTarget.children].filter((c) => c.classList.contains('hc-tile')).map((c) => c.getBoundingClientRect());
                     move(id, dropIndex(rects, ids.indexOf(id), ev.clientX, ev.clientY));
                   },
                 } : {})}
               >
+                {dropLine?.group === title && arr && (
+                  <li className="hc-drop-line" aria-hidden="true" style={{ left: dropLine.x, top: dropLine.y, height: dropLine.h }} />
+                )}
                 {list.map((e, i) => {
                   const nudge = (to: number, dir: string) => {
                     move(e.entity_id, to);
@@ -627,7 +663,7 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
                           ev.dataTransfer.effectAllowed = 'move';
                           ev.dataTransfer.setData('text/plain', e.entity_id);
                         },
-                        onDragEnd: () => { dragId.current = null; },
+                        onDragEnd: () => { dragId.current = null; setDropLine(null); },
                       } : undefined}
                     >
                       {arr && (
@@ -708,6 +744,7 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
       )}
       {updatesOpen && <UpdatesDialog updates={updates.map((w) => w.entity)} onClose={() => setUpdatesOpen(false)} />}
 
+      <p className="hc-sr" role="status">{announce}</p>
       <div className="hc-toasts" role="region" aria-label="Notifications" aria-live="assertive">
         {toasts.map((t) => (
           <div key={t.id} className="hc-toast">
