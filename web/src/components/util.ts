@@ -85,6 +85,19 @@ export function moveTo(ids: string[], id: string, to: number, saved: string[] = 
   return [...rest, ...saved.filter((x) => !ids.includes(x))];
 }
 
+type Box = { left: number; top: number; right: number; bottom: number };
+
+/**
+ * Where a tile dropped at (x, y) lands, as a moveTo index. It goes before the first tile the point
+ * precedes in reading order (above its row, or in its row left of its centre), else last.
+ * `from` is the dragged tile's own index, which moveTo removes first.
+ */
+export function dropIndex(rects: Box[], from: number, x: number, y: number): number {
+  let k = rects.findIndex((r) => y < r.top || (y <= r.bottom && x < (r.left + r.right) / 2));
+  if (k === -1) k = rects.length;
+  return k > from ? k - 1 : k;
+}
+
 /** One rendered section: [key, title, entities]. */
 export type Section = [string, string, Entity[]];
 

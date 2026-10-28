@@ -1,5 +1,5 @@
-import { mdiAlertCircleOutline, mdiArrowLeft, mdiArrowRight, mdiCursorMove, mdiBookmarkPlusOutline, mdiFolderPlusOutline, mdiCheckboxMultipleMarkedOutline, mdiDocker, mdiDotsVertical, mdiDoorOpen, mdiHarddisk, mdiMagnify, mdiMenu, mdiPackageUp, mdiWeatherSunsetDown, mdiWeatherSunsetUp } from '@mdi/js';
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { mdiAlertCircleOutline, mdiArrowDown, mdiArrowLeft, mdiArrowRight, mdiArrowUp, mdiCursorMove, mdiBookmarkPlusOutline, mdiFolderPlusOutline, mdiCheckboxMultipleMarkedOutline, mdiDocker, mdiDotsVertical, mdiDoorOpen, mdiHarddisk, mdiMagnify, mdiMenu, mdiPackageUp, mdiWeatherSunsetDown, mdiWeatherSunsetUp } from '@mdi/js';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type DragEvent } from 'react';
 import type { Entity, Home, HomeCloudClient } from '../client';
 import { EntityCard, type Action } from './EntityCard';
 import { isTracked } from './history';
@@ -7,7 +7,7 @@ import { Icon } from './icons';
 import { MoreInfo, UpdateBody } from './MoreInfo';
 import { Sidebar } from './Sidebar';
 import { usePoll } from './usePoll';
-import { DEFAULT_PREFS, MAX_QUERIES, domainOf, errorMessage, formatLastSeen, friendlyName, groupIds, matchesFilter, moveGroup, moveTo, organize, saveQuery, setMembers, sunTimes, updateInfo, warnings, type ViewPrefs } from './util';
+import { DEFAULT_PREFS, MAX_QUERIES, domainOf, errorMessage, formatLastSeen, friendlyName, groupIds, matchesFilter, dropIndex, moveGroup, moveTo, organize, saveQuery, setMembers, sunTimes, updateInfo, warnings, type ViewPrefs } from './util';
 import { getTheme, initTheme, setTheme, type Theme } from '../theme';
 import './dashboard.css';
 
@@ -552,7 +552,13 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
               : 'This home has not reported any entities yet.'}
           </p>
         ) : (
-          groups.map(([key, title, list]) => (
+          groups.map(([key, title, list]) => {
+            const arr = arranging === title && key.startsWith('grp:') && !selecting;
+            const ids = list.map((x) => x.entity_id);
+            const move = (id: string, to: number) =>
+              setPrefs({ order: { ...prefs.order, [title]: moveTo(ids, id, to, prefs.order[title]) }, customOrder: true });
+            const dragging = () => (dragId.current && ids.includes(dragId.current) ? dragId.current : null);
+            return (
             <section key={key} className="hc-section" aria-labelledby={sectionId(key)}>
               <div className="hc-section-head">
               <h2 id={sectionId(key)} className="hc-section-title">
@@ -570,19 +576,37 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
                 )}
               </div>
               {arranging === title && key.startsWith('grp:') && (
-                <p className="hc-muted hc-arrange-hint">Drag tiles, or use the arrows. Saved automatically.</p>
+                <p className="hc-muted hc-arrange-hint">Drag a tile anywhere in the group, or use the arrows. Saved automatically.</p>
               )}
-              <ul className="hc-tiles">
+              <ul
+                className="hc-tiles"
+                {...(arr ? {
+                  // Drop anywhere in the grid: gaps, either half of a tile, or after the last one.
+                  onDragOver: (ev: DragEvent<HTMLUListElement>) => { if (dragging()) ev.preventDefault(); },
+                  onDrop: (ev: DragEvent<HTMLUListElement>) => {
+                    ev.preventDefault();
+                    const id = dragging();
+                    dragId.current = null;
+                    if (!id) return;
+                    const rects = [...ev.currentTarget.children].map((c) => c.getBoundingClientRect());
+                    move(id, dropIndex(rects, ids.indexOf(id), ev.clientX, ev.clientY));
+                  },
+                } : {})}
+              >
                 {list.map((e, i) => {
-                  const arr = arranging === title && key.startsWith('grp:') && !selecting;
-                  const ids = list.map((x) => x.entity_id);
-                  const move = (id: string, to: number) =>
-                    setPrefs({ order: { ...prefs.order, [title]: moveTo(ids, id, to, prefs.order[title]) }, customOrder: true });
                   const nudge = (to: number, dir: string) => {
                     move(e.entity_id, to);
                     requestAnimationFrame(() => document.getElementById(`hc-mv-${dir}-${e.entity_id}`)?.focus());
                   };
+                  const cols = (el: HTMLElement) =>
+                    getComputedStyle(el.closest('ul')!).gridTemplateColumns.split(' ').filter(Boolean).length || 1;
                   const name = friendlyName(e);
+                  const btn = (dir: string, label: string, icon: string, off: boolean, to: (c: number) => number) => (
+                    <button type="button" id={`hc-mv-${dir}-${e.entity_id}`} className="hc-icon-btn" aria-label={`Move ${name} ${label}`} disabled={off}
+                      onClick={(ev) => nudge(Math.max(0, Math.min(list.length - 1, to(cols(ev.currentTarget)))), dir)}>
+                      <Icon path={icon} size={18} />
+                    </button>
+                  );
                   return (
                     <EntityCard
                       key={e.entity_id}
@@ -603,24 +627,15 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
                           ev.dataTransfer.effectAllowed = 'move';
                           ev.dataTransfer.setData('text/plain', e.entity_id);
                         },
-                        onDragOver: (ev) => { if (dragId.current && ids.includes(dragId.current)) ev.preventDefault(); },
-                        onDrop: (ev) => {
-                          ev.preventDefault();
-                          const id = dragId.current;
-                          dragId.current = null;
-                          if (id && id !== e.entity_id && ids.includes(id)) move(id, i);
-                        },
                         onDragEnd: () => { dragId.current = null; },
                       } : undefined}
                     >
                       {arr && (
                         <span className="hc-tile-move">
-                          <button type="button" id={`hc-mv-l-${e.entity_id}`} className="hc-icon-btn" aria-label={`Move ${name} earlier`} disabled={i === 0} onClick={() => nudge(i - 1, 'l')}>
-                            <Icon path={mdiArrowLeft} size={20} />
-                          </button>
-                          <button type="button" id={`hc-mv-r-${e.entity_id}`} className="hc-icon-btn" aria-label={`Move ${name} later`} disabled={i === list.length - 1} onClick={() => nudge(i + 1, 'r')}>
-                            <Icon path={mdiArrowRight} size={20} />
-                          </button>
+                          {btn('u', 'up a row', mdiArrowUp, i === 0, (c) => i - c)}
+                          {btn('l', 'earlier', mdiArrowLeft, i === 0, () => i - 1)}
+                          {btn('r', 'later', mdiArrowRight, i === list.length - 1, () => i + 1)}
+                          {btn('d', 'down a row', mdiArrowDown, i === list.length - 1, (c) => i + c)}
                         </span>
                       )}
                     </EntityCard>
@@ -628,7 +643,8 @@ export function HomeCloudDashboard({ client, homeId: pinnedHome, pollMs = 5000, 
                 })}
               </ul>
             </section>
-          ))
+          );
+          })
         )}
 
         {selecting && (
