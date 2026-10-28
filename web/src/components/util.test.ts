@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Entity } from '../client';
-import { DEFAULT_PREFS, MAX_QUERIES, groupIds, moveGroup, moveTo, organize, setMembers, prettyState, saveQuery, stateText, sunTimes, updateInfo, warnings } from './util';
+import { DEFAULT_PREFS, MAX_QUERIES, groupIds, dropIndex, moveGroup, moveTo, organize, setMembers, prettyState, saveQuery, stateText, sunTimes, updateInfo, warnings } from './util';
 
 const e = (entity_id: string, name: string, last_changed = '2026-01-01T00:00:00Z'): Entity => ({
   entity_id,
@@ -230,5 +230,19 @@ describe('custom tile order', () => {
   it('renaming or deleting a group carries its order', () => {
     expect(moveGroup({ ...p, order: { G: ['light.b'] } }, 'G', 'H').order).toEqual({ H: ['light.b'] });
     expect(moveGroup({ ...p, order: { G: ['light.b'] } }, 'G', null).order).toEqual({});
+  });
+});
+
+describe('dropIndex', () => {
+  // 3 columns, 100 wide with 10 gaps, 2 rows of 50 high with a 10 gap: tiles 0-2 on row 1, 3-4 on row 2.
+  const box = (i: number) => ({ left: (i % 3) * 110, right: (i % 3) * 110 + 100, top: Math.floor(i / 3) * 60, bottom: Math.floor(i / 3) * 60 + 50 });
+  const rects = [0, 1, 2, 3, 4].map(box);
+  it('drops before the tile whose left half (or row above) is hit, else last', () => {
+    expect(dropIndex(rects, 4, 20, 20)).toBe(0); // left half of tile 0
+    expect(dropIndex(rects, 4, 80, 20)).toBe(1); // right half of tile 0
+    expect(dropIndex(rects, 4, 105, 20)).toBe(1); // gap between 0 and 1
+    expect(dropIndex(rects, 0, 300, 90)).toBe(4); // empty space after the last tile
+    expect(dropIndex(rects, 0, 20, 80)).toBe(2); // before tile 3, after removing 0
+    expect(dropIndex(rects, 0, 20, 55)).toBe(2); // row gap: before row 2
   });
 });
