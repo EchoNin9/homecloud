@@ -53,9 +53,13 @@ export interface ViewPrefs {
   showHidden: boolean;
   /** With group 'custom': show only this group ('' = all groups). */
   only: string;
+  /** Custom groups: name -> entity ids in the user's order (drag and drop). */
+  order: Record<string, string[]>;
+  /** Custom groups use `order` (true) or the default sort (false). */
+  customOrder: boolean;
 }
 
-export const DEFAULT_PREFS: ViewPrefs = { sort: 'name', group: 'domain', favs: [], hidden: [], groups: {}, queries: [], showHidden: false, only: '', groupQueries: {}, groupOut: {} };
+export const DEFAULT_PREFS: ViewPrefs = { sort: 'name', group: 'domain', favs: [], hidden: [], groups: {}, queries: [], showHidden: false, only: '', groupQueries: {}, groupOut: {}, order: {}, customOrder: true };
 export const MAX_QUERIES = 15;
 
 /** Add q to the saved list (newest first, no duplicates). Null when full. */
@@ -64,6 +68,21 @@ export function saveQuery(list: string[], q: string): string[] | null {
   if (!t) return list;
   const rest = list.filter((x) => x !== t);
   return rest.length >= MAX_QUERIES ? null : [t, ...rest];
+}
+
+/** The user's order first; members it doesn't list yet keep the default order, after them. */
+export function arrange(list: Entity[], order: string[] | undefined): Entity[] {
+  if (!order?.length) return list;
+  const rank = new Map(order.map((id, i) => [id, i]));
+  const r = (e: Entity) => rank.get(e.entity_id) ?? order.length;
+  return [...list].sort((a, b) => r(a) - r(b));
+}
+
+/** Move id to index `to` of ids. Members not shown (in `saved` only) keep their place after them. */
+export function moveTo(ids: string[], id: string, to: number, saved: string[] = []): string[] {
+  const rest = ids.filter((x) => x !== id);
+  rest.splice(Math.max(0, Math.min(to, rest.length)), 0, id);
+  return [...rest, ...saved.filter((x) => !ids.includes(x))];
 }
 
 /** One rendered section: [key, title, entities]. */
@@ -86,7 +105,7 @@ export function organize(entities: Entity[], filter: string, p: ViewPrefs): Sect
   if (p.group === 'custom' && p.only) {
     // One group on its own: every member, favourites and hidden ones (dimmed) included, nothing else.
     const ids = groupIds(p.only, matching, p);
-    const list = matching.filter((e) => ids.has(e.entity_id));
+    const list = mine(matching.filter((e) => ids.has(e.entity_id)), p.only, p);
     return list.length ? [[`grp:${p.only}`, p.only, list]] : [];
   }
   const out = grouped(matching.filter((e) => !hidden.has(e.entity_id)), p);
@@ -94,6 +113,8 @@ export function organize(entities: Entity[], filter: string, p: ViewPrefs): Sect
   if (p.showHidden && hid.length) out.push(['_hidden', 'Hidden', hid]);
   return out;
 }
+
+const mine = (list: Entity[], group: string, p: ViewPrefs) => (p.customOrder ? arrange(list, p.order[group]) : list);
 
 function grouped(shown: Entity[], p: ViewPrefs): Section[] {
   const favs = new Set(p.favs);
@@ -111,7 +132,7 @@ function grouped(shown: Entity[], p: ViewPrefs): Section[] {
     const grouped = new Set([...sets.values()].flatMap((x) => [...x]));
     for (const n of names) {
       const ids = sets.get(n)!;
-      const list = rest.filter((e) => ids.has(e.entity_id));
+      const list = mine(rest.filter((e) => ids.has(e.entity_id)), n, p);
       if (list.length) out.push([`grp:${n}`, n, list]);
     }
     const loose = rest.filter((e) => !grouped.has(e.entity_id));
@@ -378,7 +399,7 @@ export function moveGroup(p: ViewPrefs, from: string, to: string | null): Partia
     return to && v !== undefined ? { ...rest, [to]: v } : rest;
   };
   return {
-    groups: pick(p.groups), groupQueries: pick(p.groupQueries), groupOut: pick(p.groupOut),
+    groups: pick(p.groups), groupQueries: pick(p.groupQueries), groupOut: pick(p.groupOut), order: pick(p.order),
     ...(p.only === from ? { only: to ?? '' } : {}),
   };
 }
