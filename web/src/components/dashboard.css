@@ -292,7 +292,25 @@ button.hc-badge:hover { border-color: var(--hc-border-strong); box-shadow: var(-
 .hc-tile[data-tone='on'] { background: color-mix(in srgb, var(--hc-on) 6%, var(--hc-surface)); border-color: color-mix(in srgb, var(--hc-on) var(--hc-on-edge), var(--hc-border)); }
 .hc-tile[data-tone='alert'] { background: color-mix(in srgb, var(--hc-alert) 6%, var(--hc-surface)); border-color: color-mix(in srgb, var(--hc-alert) 30%, var(--hc-border)); }
 .hc-tile[data-hidden] { opacity: 0.5; }
-.hc-tile[draggable='true'] { cursor: grab; border-style: dashed; border-color: var(--hc-accent); }
+.hc-tile[draggable='true'] { cursor: grab; border-style: dashed; border-color: color-mix(in srgb, var(--hc-accent) 55%, var(--hc-border)); }
+/* Arranging: the group becomes an editing surface. On/off washes step back so position is the only story. */
+.hc-section[data-arranging] {
+  margin-inline: -12px; padding: 12px; border-radius: calc(var(--hc-radius) + 6px);
+  background: color-mix(in srgb, var(--hc-accent) 7%, var(--hc-bg));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hc-accent) 30%, transparent);
+}
+.hc-tile[data-arranging], .hc-tile[data-arranging][data-tone] { background: var(--hc-surface); box-shadow: var(--hc-shadow-1); }
+.hc-tile[data-arranging]:hover { border-color: var(--hc-accent); box-shadow: var(--hc-shadow-2); }
+.hc-tile[data-dragging] { opacity: 0.35; transform: scale(0.97); }
+.hc-tile[data-arranging] .hc-tile-main { padding-right: 16px; }
+.hc-tile-grip { position: absolute; top: 8px; right: 6px; color: var(--hc-muted); opacity: 0.7; }
+.hc-chip-btn.hc-chip-primary { background: var(--hc-accent); color: var(--hc-accent-text); font-weight: 600; }
+.hc-chip-btn.hc-chip-primary:hover { background: color-mix(in srgb, var(--hc-accent) 88%, var(--hc-text)); border-color: transparent; }
+/* Group tools stay quiet until the group is in play (mouse users; touch always sees them full). */
+@media (hover: hover) {
+  .hc-section:not([data-arranging]) .hc-section-tools { opacity: 0.55; transition: opacity 0.15s; }
+  .hc-section:hover .hc-section-tools, .hc-section-tools:focus-within { opacity: 1; }
+}
 .hc-tile-move { display: flex; justify-content: flex-end; gap: 2px; margin: -6px -6px -6px 0; }
 .hc-tile-move .hc-icon-btn { width: 34px; height: 34px; }
 /* Fingers: four equal 44px-tall buttons across the tile. */
@@ -504,6 +522,7 @@ button.hc-badge:hover { border-color: var(--hc-border-strong); box-shadow: var(-
   .hc-toolbar { margin: 0 -16px 14px; padding: 0 12px 0 16px; height: 60px; }
 }
 @media (max-width: 600px) {
+  .hc-section[data-arranging] { margin-inline: -6px; padding: 10px 6px; }
   .hc-main { padding: 0 12px 16px; }
   .hc-toolbar { margin: 0 -12px 12px; padding: 0 8px 0 12px; gap: 6px; height: 56px; }
   .hc-title, .hc-title-select { font-size: 1.12rem; }
