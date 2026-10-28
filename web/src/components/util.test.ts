@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Entity } from '../client';
-import { DEFAULT_PREFS, MAX_QUERIES, groupIds, dropIndex, moveGroup, moveTo, organize, setMembers, prettyState, saveQuery, stateText, sunTimes, updateInfo, warnings } from './util';
+import { DEFAULT_PREFS, MAX_QUERIES, groupIds, dropIndex, dropSlot, moveGroup, moveTo, organize, setMembers, prettyState, saveQuery, stateText, sunTimes, updateInfo, warnings } from './util';
 
 const e = (entity_id: string, name: string, last_changed = '2026-01-01T00:00:00Z'): Entity => ({
   entity_id,
@@ -223,13 +223,16 @@ describe('custom tile order', () => {
   it('applies the saved order (new members last, default order) and the toggle', () => {
     const order = { G: ['light.c', 'light.a'] };
     expect(names({ ...p, order })).toEqual(['light.c', 'light.a', 'light.b', 'light.d']);
-    expect(names({ ...p, order, customOrder: false })).toEqual(['light.a', 'light.b', 'light.c', 'light.d']);
+    expect(names({ ...p, order, defaultSort: ['G'] })).toEqual(['light.a', 'light.b', 'light.c', 'light.d']);
+    expect(names({ ...p, order, defaultSort: ['Other'] })).toEqual(['light.c', 'light.a', 'light.b', 'light.d']); // per group
     expect(names({ ...p, order, only: 'G' })).toEqual(['light.c', 'light.a', 'light.b', 'light.d']);
   });
 
   it('renaming or deleting a group carries its order', () => {
     expect(moveGroup({ ...p, order: { G: ['light.b'] } }, 'G', 'H').order).toEqual({ H: ['light.b'] });
     expect(moveGroup({ ...p, order: { G: ['light.b'] } }, 'G', null).order).toEqual({});
+    expect(moveGroup({ ...p, defaultSort: ['G', 'X'] }, 'G', 'H').defaultSort).toEqual(['X', 'H']);
+    expect(moveGroup({ ...p, defaultSort: ['G', 'X'] }, 'G', null).defaultSort).toEqual(['X']);
   });
 });
 
@@ -244,5 +247,7 @@ describe('dropIndex', () => {
     expect(dropIndex(rects, 0, 300, 90)).toBe(4); // empty space after the last tile
     expect(dropIndex(rects, 0, 20, 80)).toBe(2); // before tile 3, after removing 0
     expect(dropIndex(rects, 0, 20, 55)).toBe(2); // row gap: before row 2
+    expect(dropSlot(rects, 300, 90)).toBe(5); // after the last tile
+    expect(dropSlot(rects, 80, 20)).toBe(1);
   });
 });
